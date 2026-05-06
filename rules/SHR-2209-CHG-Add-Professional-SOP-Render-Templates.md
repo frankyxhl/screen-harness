@@ -39,7 +39,7 @@ The current demo renders subtitles as generic full-width overlays, which makes t
 - A clear white-background intro explaining what will be demonstrated.
 - A countdown before the actual screen recording starts.
 - Step guidance placed in a lower-left or lower-right card, not across the whole screen.
-- Step numbers plus concise English demo text, e.g. `01 Open Chrome`.
+- Step numbers plus concise English demo text, e.g. `01 Open Safari`.
 - Multiple future presentation modes for different SOP/video scenarios.
 
 Trinity consultation with GLM, DeepSeek, and Claude Code agreed that this should be solved as a render-template layer, not merely with better generated copy.
@@ -76,7 +76,7 @@ Trinity consultation with GLM, DeepSeek, and Claude Code agreed that this should
    - light translucent card, restrained size, CJK-capable font preference.
    - larger title/note sizing and enough bottom margin to avoid clipped wrapped text.
 8. Record render provenance in `metadata.json`, including selected template and render timestamp.
-9. Update the Chrome/GitHub demo to use `training`.
+9. Update the Safari/GitHub demo to use `training`.
 10. Add focused tests for template dispatch, ASS generation, intro timing, CLI/helper wiring, metadata, and backward compatibility.
 
 
@@ -118,7 +118,7 @@ Reason: templates may need code, not just configuration, because they generate A
 
 - Intro: white background, red title, dark gray subtitle, large centered countdown `5 4 3 2 1`.
 - Main overlay: lower-corner by default, light translucent card with dark text.
-- Step title: `01  Open Chrome`, bold, red/orange accent.
+- Step title: `01  Open Safari`, bold, red/orange accent.
 - Step note: smaller dark instruction line, wrapped conservatively.
 - Highlight boxes: blue by default in professional demos, with per-event color override through `highlight_region(..., color=...)`.
 - Dwell: no overlap with next step; clamp card duration to a professional range.
@@ -133,7 +133,7 @@ The new fields are optional and additive. Example:
 {
   "intro": {
     "title": "This video demonstrates the Screen Harness GitHub repository",
-    "subtitle": "Open Chrome, visit the project page, and inspect the file structure",
+    "subtitle": "Open Safari, visit the project page, and inspect the file structure",
     "countdown": 5
   },
   "events": [
@@ -141,7 +141,7 @@ The new fields are optional and additive. Example:
       "id": "evt_002",
       "t": 0.0,
       "type": "step",
-      "title": "Open Chrome",
+      "title": "Open Safari",
       "note": "Launch the browser and prepare to visit the repository",
       "number": 1
     }
@@ -188,7 +188,7 @@ Use a four-layer test strategy:
 1. **Unit tests:** template registry, ASS text generation, helper signatures, render command builders, and unknown template errors.
 2. **BDD acceptance tests:** pytest scenarios written in Given/When/Then shape that exercise user-facing behavior without launching a browser. Example: given a timeline with intro and two steps, when rendered with `training`, then intro ASS and numbered step cards are produced and markdown remains stable.
 3. **Hermetic E2E render tests:** generate a synthetic FFmpeg source video, create `timeline.json`, run the real `render(template="training")` pipeline, and assert `final.mp4` plus metadata exist. This can run in CI when FFmpeg supports ASS/subtitles and should skip clearly otherwise.
-4. **Manual or scheduled UI E2E:** run `examples/expense_sop.py` to open Chrome and visit GitHub. Keep this out of required PR CI because it depends on macOS screen-recording permissions, Chrome availability, network, and desktop focus.
+4. **Manual or scheduled UI E2E:** run `examples/expense_sop.py` to open Safari and visit GitHub. Keep this out of required PR CI because it depends on macOS screen-recording permissions, Safari availability, network, and desktop focus.
 
 Required checks for this PR:
 
@@ -213,11 +213,11 @@ PR CI should stay aggressive but deterministic:
 - Keep Python at `3.14`.
 - Run unit, BDD, and hermetic E2E tests in the same `pytest` job.
 - Let FFmpeg E2E skip only when the runner lacks required FFmpeg filters; do not skip ordinary Python tests.
-- Do not run the real Chrome demo on every PR.
+- Do not run the real Safari demo on every PR.
 
 Later CI expansion:
 
-- Add a scheduled macOS workflow for real Chrome recording once the demo stabilizes.
+- Add a scheduled macOS workflow for real Safari recording once the demo stabilizes.
 - Store rendered demo videos as artifacts for visual review.
 - Add screenshot/frame sampling after templates become more visual and subjective.
 

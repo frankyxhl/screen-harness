@@ -4,11 +4,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_chrome_demo_documents_target_repo_and_is_noninteractive():
+def test_safari_demo_documents_target_repo_and_is_noninteractive():
     demo = (ROOT / "examples" / "expense_sop.py").read_text()
 
     assert "https://github.com/frankyxhl/screen-harness" in demo
-    assert "chrome_github_repo_demo" in demo
+    assert "safari_github_repo_demo" in demo
+    assert "Safari" in demo
+    assert "Google Chrome" not in demo
     assert "intro(" in demo
     assert 'render(template="training")' in demo
     assert "wait_for_user" not in demo

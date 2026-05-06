@@ -34,7 +34,7 @@ def test_timeline_create_accepts_intro_metadata(tmp_path):
         source_video="raw.mp4",
         intro={"title": "This video demonstrates the demo flow", "countdown": 5},
     )
-    timeline.add_event("step", t=0.0, title="Open Chrome", note="Launch the browser", number=1)
+    timeline.add_event("step", t=0.0, title="Open Safari", note="Launch the browser", number=1)
 
     loaded = Timeline.load(tmp_path / "timeline.json")
     assert loaded.data["intro"]["countdown"] == 5

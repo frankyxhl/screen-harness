@@ -37,14 +37,14 @@ def test_intro_and_step_helpers_write_professional_metadata(monkeypatch, tmp_pat
     monkeypatch.setattr(helpers, "_STATE", state)
     monkeypatch.setattr(helpers.time, "monotonic", lambda: 2.5)
 
-    helpers.intro("This video demonstrates Screen Harness", subtitle="Open Chrome", countdown=5)
-    helpers.step("Open Chrome", note="Launch the browser", number=1)
+    helpers.intro("This video demonstrates Screen Harness", subtitle="Open Safari", countdown=5)
+    helpers.step("Open Safari", note="Launch the browser", number=1)
 
     loaded = helpers.Timeline.load(tmp_path / "timeline.json")
     assert loaded.data["intro"]["title"] == "This video demonstrates Screen Harness"
-    assert loaded.data["intro"]["subtitle"] == "Open Chrome"
+    assert loaded.data["intro"]["subtitle"] == "Open Safari"
     assert loaded.data["intro"]["countdown"] == 5
-    assert loaded.data["events"][0]["title"] == "Open Chrome"
+    assert loaded.data["events"][0]["title"] == "Open Safari"
     assert loaded.data["events"][0]["note"] == "Launch the browser"
     assert loaded.data["events"][0]["number"] == 1
 

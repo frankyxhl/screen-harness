@@ -19,7 +19,7 @@ def test_training_ass_uses_numbered_lower_corner_step_cards():
         "title": "Demo",
         "events": [
             {"id": "evt_001", "t": 0.0, "type": "chapter", "title": "Setup"},
-            {"id": "evt_002", "t": 1.0, "type": "step", "title": "Open Chrome", "note": "Launch the browser and prepare to visit the repository"},
+            {"id": "evt_002", "t": 1.0, "type": "step", "title": "Open Safari", "note": "Launch the browser and prepare to visit the repository"},
             {"id": "evt_003", "t": 4.0, "type": "step", "title": "Visit repository", "note": ""},
         ],
     }
@@ -30,9 +30,9 @@ def test_training_ass_uses_numbered_lower_corner_step_cards():
     assert "Alignment" in ass
     assert "&H0025201B" in ass
     assert "&H20F8F8F8" in ass
-    assert "{\\b1\\fs40}01  Open Chrome" in ass
+    assert "{\\b1\\fs40}01  Open Safari" in ass
     assert "{\\b0\\fs34}Launch the browser and prepare to visit the repository" in ass
-    assert "01  Open Chrome" in ass
+    assert "01  Open Safari" in ass
     assert "Launch the browser and prepare to visit the repository" in ass
     assert "02  Visit repository" in ass
     assert "Setup" not in ass
@@ -45,7 +45,7 @@ def test_training_intro_ass_contains_countdown_and_title():
         "title": "Fallback Title",
         "intro": {
             "title": "This video demonstrates Screen Harness",
-            "subtitle": "Open Chrome and visit the project repository",
+            "subtitle": "Open Safari and visit the project repository",
             "countdown": 5,
         },
         "events": [],
@@ -55,7 +55,7 @@ def test_training_intro_ass_contains_countdown_and_title():
 
     assert ass is not None
     assert "This video demonstrates Screen Harness" in ass
-    assert "Open Chrome and visit the project repository" in ass
+    assert "Open Safari and visit the project repository" in ass
     for digit in ["5", "4", "3", "2", "1"]:
         assert f",{digit}" in ass
     assert template.intro_duration(data) == 7.0
@@ -73,9 +73,9 @@ def test_training_without_intro_still_renders_step_cards():
     template = get_template("training")
     data = {
         "title": "Demo",
-        "events": [{"id": "evt_001", "t": 0.0, "type": "step", "title": "Open Chrome"}],
+        "events": [{"id": "evt_001", "t": 0.0, "type": "step", "title": "Open Safari"}],
     }
 
     assert template.intro_ass_text(data) is None
     assert template.intro_duration(data) == 0.0
-    assert "01  Open Chrome" in template.main_ass_text(data)
+    assert "01  Open Safari" in template.main_ass_text(data)

@@ -1,4 +1,4 @@
-"""Chrome/GitHub demo for Screen Harness.
+"""Safari/GitHub demo for Screen Harness.
 
 Run from the project root:
 
@@ -14,29 +14,29 @@ from pathlib import Path
 REPO_URL = "https://github.com/frankyxhl/screen-harness"
 
 
-def open_repo_in_chrome() -> None:
-    chrome_paths = [
-        Path("/Applications/Google Chrome.app"),
-        Path.home() / "Applications/Google Chrome.app",
+def open_repo_in_safari() -> None:
+    safari_paths = [
+        Path("/Applications/Safari.app"),
+        Path.home() / "Applications/Safari.app",
     ]
-    if any(path.exists() for path in chrome_paths):
-        subprocess.run(["open", "-na", "Google Chrome", "--args", "--new-window", REPO_URL], check=False)
+    if any(path.exists() for path in safari_paths):
+        subprocess.run(["open", "-a", "Safari", REPO_URL], check=False)
         return
     subprocess.run(["open", REPO_URL], check=False)
 
 
-recording_dir = start_recording("chrome_github_repo_demo")
+recording_dir = start_recording("safari_github_repo_demo")
 intro(
     "This video demonstrates the Screen Harness GitHub repository",
-    subtitle="Chrome opens GitHub and reviews the project page.",
+    subtitle="Safari opens GitHub and reviews the project page.",
     countdown=5,
 )
 
 chapter("Open Screen Harness on GitHub")
 
-step("Launch Chrome", note="Open a clean Chrome window for the repository.")
-caption("Open Google Chrome and start a fresh browser window.", duration=3.0)
-open_repo_in_chrome()
+step("Launch Safari", note="Open Safari for the repository walkthrough.")
+caption("Open Safari and start the repository walkthrough.", duration=3.0)
+open_repo_in_safari()
 wait(3.0)
 
 step("Visit the repository", note="Navigate directly to github.com/frankyxhl/screen-harness.")

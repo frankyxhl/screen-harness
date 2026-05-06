@@ -60,14 +60,14 @@ def test_generate_caption_assets_writes_training_intro_ass(tmp_path):
     timeline = Timeline.create(
         path=tmp_path / "timeline.json",
         recording_id="demo_20260506_120000",
-        title="Chrome Demo",
+        title="Safari Demo",
         source_video="raw.mp4",
     )
-    timeline.data["intro"] = {"title": "This video demonstrates the GitHub repository", "subtitle": "Open Chrome", "countdown": 5}
-    timeline.add_event("step", t=1.0, title="Open Chrome", note="Launch the browser")
+    timeline.data["intro"] = {"title": "This video demonstrates the GitHub repository", "subtitle": "Open Safari", "countdown": 5}
+    timeline.add_event("step", t=1.0, title="Open Safari", note="Launch the browser")
 
     outputs = generate_caption_assets(tmp_path, template="training")
 
     assert outputs.intro_ass is not None
     assert "This video demonstrates the GitHub repository" in outputs.intro_ass.read_text()
-    assert "01  Open Chrome" in outputs.ass.read_text()
+    assert "01  Open Safari" in outputs.ass.read_text()

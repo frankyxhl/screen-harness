@@ -56,7 +56,7 @@ The estimates assume conservative implementation using the existing FFmpeg/ASS p
 
 ## Milestone 1: Training Template MVP
 
-**Goal:** First visible quality jump. Make the Chrome/GitHub demo feel like a real SOP/training video without building a general theme/plugin system.
+**Goal:** First visible quality jump. Make the Safari/GitHub demo feel like a real SOP/training video without building a general theme/plugin system.
 
 **Features:**
 
@@ -84,7 +84,7 @@ The estimates assume conservative implementation using the existing FFmpeg/ASS p
   - selected template;
   - render timestamp;
   - FFmpeg path/version if available.
-- Update Chrome/GitHub demo to use `training`.
+- Update Safari/GitHub demo to use `training`.
 
 **Cost / Risk:**
 
@@ -106,7 +106,7 @@ The estimates assume conservative implementation using the existing FFmpeg/ASS p
 - Unit: small Python tests for registry, timeline fields, command construction, helpers, and CLI flag parsing.
 - BDD: pytest acceptance scenario using Given/When/Then structure, no browser, no OS permissions, no network.
 - E2E: synthetic FFmpeg `raw.mp4` plus real `render(template="training")`; skip only if FFmpeg lacks ASS/subtitles support.
-- Manual UI E2E: `examples/expense_sop.py` opens Chrome and visits GitHub; keep it outside required PR CI until a scheduled macOS visual-review workflow exists.
+- Manual UI E2E: `examples/expense_sop.py` opens Safari and visits GitHub; keep it outside required PR CI until a scheduled macOS visual-review workflow exists.
 
 **Extra Test Cost:**
 
@@ -210,7 +210,7 @@ The estimates assume conservative implementation using the existing FFmpeg/ASS p
 
 **Exit Criteria:**
 
-- Product demo can render the Chrome/GitHub example without looking like an internal training video.
+- Product demo can render the Safari/GitHub example without looking like an internal training video.
 - Default visual language remains restrained and readable.
 - No external plugin loading yet unless Milestone 5 is approved.
 
@@ -260,7 +260,7 @@ Scope:
 - Optional `intro` + `step.note`.
 - `render(..., template="training")`.
 - CLI `--template`.
-- Chrome/GitHub demo updated.
+- Safari/GitHub demo updated.
 - Tests and one real render smoke if local FFmpeg supports it.
 
 Do not implement `compact`, `presentation`, `product-demo`, or plugin loading in this PR.

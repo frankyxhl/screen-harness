@@ -35,9 +35,9 @@ render ffmpeg: ok
 
 Microphone can be `not detected`; the current MVP works without microphone input.
 
-## Run The Chrome/GitHub Demo
+## Run The Safari/GitHub Demo
 
-The current demo script opens Google Chrome, visits this repository, adds a white intro card with a countdown, shows numbered lower-corner step cards, and renders a video.
+The current demo script opens Safari, visits this repository, adds a white intro card with a countdown, shows numbered lower-corner step cards, and renders a video.
 
 ```bash
 uv run screen-harness -c 'exec(open("examples/expense_sop.py").read())'
@@ -46,7 +46,7 @@ uv run screen-harness -c 'exec(open("examples/expense_sop.py").read())'
 The script prints the recording directory and rendered `final.mp4` path when it completes. To find the latest demo later:
 
 ```bash
-ls -td recordings/chrome_github_repo_demo_* | head -1
+ls -td recordings/safari_github_repo_demo_* | head -1
 ```
 
 Expected files in the recording directory:
@@ -71,7 +71,7 @@ uv run screen-harness render <recording_id>
 Example:
 
 ```bash
-uv run screen-harness render chrome_github_repo_demo_20260506_150000
+uv run screen-harness render safari_github_repo_demo_20260506_150000
 ```
 
 Use the professional training template explicitly:
