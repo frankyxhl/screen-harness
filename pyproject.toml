@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "screen-harness"
+version = "0.0.1"
+description = "CLI-first screen recording and SOP rendering harness for AI agents."
+requires-python = ">=3.11"
+dependencies = []
+
+[project.scripts]
+screen-harness = "screen_harness.run:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
