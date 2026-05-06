@@ -1,5 +1,7 @@
 # Screen Harness
 
+[![CI](https://github.com/frankyxhl/screen-harness/actions/workflows/ci.yml/badge.svg)](https://github.com/frankyxhl/screen-harness/actions/workflows/ci.yml)
+
 Screen Harness is a CLI-first macOS tool for recording screen workflows and turning them into SOP videos and Markdown documents. It records an immutable `raw.mp4`, stores editable events in `timeline.json`, then renders captions, step titles, highlights, clicks, and redactions into `final.mp4`.
 
 The MVP is intentionally small: it proves the local recording-to-rendering loop before adding a daemon, global hotkeys, or cloud AI providers.
@@ -125,3 +127,11 @@ uv run pytest -q
 uv run python -m compileall -q src tests
 af validate
 ```
+
+## CI/CD
+
+GitHub Actions runs on pull requests and pushes to `main`:
+
+- `test`: Python `3.11`, `3.12`, and `3.13` matrix with `pytest` and `compileall`.
+- `alfred`: validates `rules/` with `uvx --from fx-alfred af validate`.
+- `package`: builds source and wheel distributions with `uv build`, then uploads `dist/*` as the `screen-harness-dist` workflow artifact.
