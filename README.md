@@ -132,6 +132,6 @@ af validate
 
 GitHub Actions runs on pull requests and pushes to `main`:
 
-- `test`: Python `3.11`, `3.12`, and `3.13` matrix with `pytest` and `compileall`.
+- `test`: Python `3.14` with `pytest` and `compileall`.
 - `alfred`: validates `rules/` with `uvx --from fx-alfred af validate`.
 - `package`: builds source and wheel distributions with `uv build`, then uploads `dist/*` as the `screen-harness-dist` workflow artifact.

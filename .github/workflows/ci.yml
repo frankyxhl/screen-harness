@@ -12,15 +12,8 @@ permissions:
 
 jobs:
   test:
-    name: Test Python ${{ matrix.python-version }}
+    name: Test Python 3.14
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version:
-          - "3.11"
-          - "3.12"
-          - "3.13"
 
     steps:
       - name: Checkout
@@ -32,16 +25,16 @@ jobs:
           enable-cache: true
 
       - name: Install Python
-        run: uv python install ${{ matrix.python-version }}
+        run: uv python install 3.14
 
       - name: Sync dependencies
-        run: uv sync --locked --python ${{ matrix.python-version }}
+        run: uv sync --locked --python 3.14
 
       - name: Run tests
-        run: uv run --python ${{ matrix.python-version }} pytest -q
+        run: uv run --python 3.14 pytest -q
 
       - name: Compile Python files
-        run: uv run --python ${{ matrix.python-version }} python -m compileall -q src tests examples
+        run: uv run --python 3.14 python -m compileall -q src tests examples
 
   alfred:
     name: Validate Alfred docs

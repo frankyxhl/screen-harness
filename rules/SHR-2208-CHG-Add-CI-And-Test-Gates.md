@@ -15,7 +15,7 @@
 
 Add pull-request CI/CD for Screen Harness:
 
-- Python test matrix for `3.11`, `3.12`, and `3.13`.
+- Aggressive Python `3.14` test target.
 - `pytest` and `compileall` gates.
 - Alfred rules validation through `uvx --from fx-alfred af validate`.
 - Package build gate with uploaded `dist/*` artifact.
@@ -59,6 +59,7 @@ Add pull-request CI/CD for Screen Harness:
 | 2026-05-06 | Created CHG for CI/test gates | Done |
 | 2026-05-06 | Added GitHub Actions workflow, dev dependency, README docs, and contract tests | Done |
 | 2026-05-06 | Ran local verification | `36` tests passed; `compileall`, `uv build`, `uvx --from fx-alfred af validate`, `af validate`, and workflow YAML parse passed |
+| 2026-05-06 | Narrowed CI from multi-version matrix to Python 3.14 | Done |
 
 ---
 
