@@ -37,7 +37,8 @@ class RuntimeState:
 
 
 _STATE = RuntimeState(root=Path.cwd())
-DEFAULT_HIGHLIGHT_COLOR = "blue@0.35"
+DEFAULT_HIGHLIGHT_COLOR = "blue@0.60"
+DEFAULT_HIGHLIGHT_THICKNESS = 10
 
 __all__ = [
     "start_recording",
@@ -72,6 +73,8 @@ def start_recording(
     mic: str | None = None,
     intro: str | dict | None = None,
     template: str | None = None,
+    capture_cursor: bool = True,
+    capture_mouse_clicks: bool = True,
 ) -> Path:
     init_project(_STATE.root)
     template_name = get_template(template).name
@@ -100,11 +103,20 @@ def start_recording(
         "ffmpeg_version": _safe_ffmpeg_version(ffmpeg_path),
         "canvas": None,
         "render_template": template_name,
+        "capture_cursor": capture_cursor,
+        "capture_mouse_clicks": capture_mouse_clicks,
         "error": None,
     }
     _write_json(recording_dir / "metadata.json", metadata)
     log_handle = (recording_dir / "ffmpeg.log").open("w")
-    cmd = build_screen_record_command(raw, duration=None, screen_index=screen or "0", audio_index=mic)
+    cmd = build_screen_record_command(
+        raw,
+        duration=None,
+        screen_index=screen or "0",
+        audio_index=mic,
+        capture_cursor=capture_cursor,
+        capture_mouse_clicks=capture_mouse_clicks,
+    )
     process = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=log_handle, stderr=subprocess.STDOUT)
     _STATE.recording_dir = recording_dir
     _STATE.timeline = timeline
@@ -205,8 +217,18 @@ def click(x: int, y: int, *, label: str | None = None, t: float | None = None) -
     _timeline().add_event("click", t=_event_time(t), x=x, y=y, label=label)
 
 
-def highlight_region(x: int, y: int, w: int, h: int, *, text: str | None = None, duration: float = 3.0, color: str | None = None) -> None:
-    _timeline().add_event("highlight", t=_event_time(None), rect=[x, y, w, h], text=text, duration=duration, color=color)
+def highlight_region(
+    x: int,
+    y: int,
+    w: int,
+    h: int,
+    *,
+    text: str | None = None,
+    duration: float = 3.0,
+    color: str | None = None,
+    thickness: int | str | None = None,
+) -> None:
+    _timeline().add_event("highlight", t=_event_time(None), rect=[x, y, w, h], text=text, duration=duration, color=color, thickness=thickness)
 
 
 def redact_region(x: int, y: int, w: int, h: int, *, reason: str | None = None, duration: float | None = None) -> None:
@@ -322,6 +344,7 @@ def _drawboxes(data: dict) -> list[DrawBox]:
                     start=event["t"],
                     duration=event.get("duration", 3.0),
                     color=event.get("color", DEFAULT_HIGHLIGHT_COLOR),
+                    thickness=event.get("thickness", DEFAULT_HIGHLIGHT_THICKNESS),
                 )
             )
         elif event["type"] == "redact":

@@ -14,6 +14,7 @@ The MVP is intentionally small: it proves the local recording-to-rendering loop 
 - Renders `final.mp4` without mutating `raw.mp4`.
 - Supports `debug` and `training` render templates.
 - Lets highlight boxes choose a render color per event.
+- Records the mouse cursor and mouse clicks in new screen captures when FFmpeg AVFoundation supports it.
 - Loads reusable helpers from `agent-workspace/agent_helpers.py`.
 - Supports manual/offline transcript input for AI-style SOP caption generation.
 - Scans transcript and timeline text for sensitive strings such as emails and tokens.

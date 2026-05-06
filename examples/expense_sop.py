@@ -41,17 +41,17 @@ wait(3.0)
 
 step("Visit the repository", note="Navigate directly to github.com/frankyxhl/screen-harness.")
 caption("Navigate to github.com/frankyxhl/screen-harness.", duration=4.0)
-highlight_region(150, 70, 1180, 70, text="Repository URL", duration=3.0, color="blue@0.35")
+highlight_region(150, 70, 1180, 70, text="Repository URL", duration=3.0, color="blue@0.60", thickness=10)
 wait(3.0)
 
 step("Review the project header", note="Confirm the repository name and top-level project context.")
 caption("Confirm the Screen Harness repository page is open.", duration=4.0)
-highlight_region(220, 145, 1120, 150, text="Repository header", duration=4.0, color="blue@0.35")
+highlight_region(220, 145, 1120, 150, text="Repository header", duration=4.0, color="blue@0.60", thickness=10)
 wait(3.0)
 
 step("Inspect the files", note="Scan the README and file list to understand the MVP structure.")
 caption("Use the README and file list to inspect the MVP structure.", duration=4.0)
-highlight_region(230, 360, 980, 430, text="Project files", duration=4.0, color="blue@0.35")
+highlight_region(230, 360, 980, 430, text="Project files", duration=4.0, color="blue@0.60", thickness=10)
 wait(3.0)
 
 stop_recording()
