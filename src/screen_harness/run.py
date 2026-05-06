@@ -23,7 +23,7 @@ Commands:
   screen-harness doctor
   screen-harness init
   screen-harness -c '<python>'
-  screen-harness render <recording_id>
+  screen-harness render <recording_id> [--template debug|training]
   screen-harness sop generate <recording_id>
   screen-harness sop ai-generate <recording_id>
   screen-harness transcribe <recording_id> [--provider manual]
@@ -60,7 +60,7 @@ def main() -> None:
             raise
         return
     if args[0] == "render" and len(args) >= 2:
-        final = helper_api.render(_recording_dir(args[1]))
+        final = helper_api.render(_recording_dir(args[1]), template=_template_arg(args[2:]))
         print(final)
         return
     if args[:2] == ["sop", "generate"] and len(args) >= 3:
@@ -125,6 +125,14 @@ def _provider_arg(args: list[str]) -> str:
     if len(args) == 2 and args[0] == "--provider":
         return args[1]
     raise SystemExit("Usage: screen-harness transcribe <recording_id> [--provider manual]")
+
+
+def _template_arg(args: list[str]) -> str | None:
+    if not args:
+        return None
+    if len(args) == 2 and args[0] == "--template":
+        return args[1]
+    raise SystemExit("Usage: screen-harness render <recording_id> [--template debug|training]")
 
 
 if __name__ == "__main__":

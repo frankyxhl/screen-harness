@@ -24,3 +24,19 @@ def test_timeline_recording_id_slug_has_timestamp():
 
     assert rid.startswith("expense_create_request_")
     assert len(rid.rsplit("_", 2)) == 3
+
+
+def test_timeline_create_accepts_intro_metadata(tmp_path):
+    timeline = Timeline.create(
+        path=tmp_path / "timeline.json",
+        recording_id="demo",
+        title="Demo",
+        source_video="raw.mp4",
+        intro={"title": "This video demonstrates the demo flow", "countdown": 5},
+    )
+    timeline.add_event("step", t=0.0, title="Open Safari", note="Launch the browser", number=1)
+
+    loaded = Timeline.load(tmp_path / "timeline.json")
+    assert loaded.data["intro"]["countdown"] == 5
+    assert loaded.data["events"][0]["note"] == "Launch the browser"
+    assert loaded.data["events"][0]["number"] == 1

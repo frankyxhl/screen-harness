@@ -19,7 +19,7 @@ class Timeline:
     data: dict
 
     @classmethod
-    def create(cls, *, path: Path, recording_id: str, title: str, source_video: str) -> "Timeline":
+    def create(cls, *, path: Path, recording_id: str, title: str, source_video: str, intro: dict | None = None) -> "Timeline":
         data = {
             "recording_id": recording_id,
             "title": title,
@@ -27,6 +27,8 @@ class Timeline:
             "source_video": source_video,
             "events": [],
         }
+        if intro is not None:
+            data["intro"] = intro
         timeline = cls(Path(path), data)
         timeline.save()
         return timeline

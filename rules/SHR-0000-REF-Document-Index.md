@@ -18,6 +18,9 @@
 | 2206 | CHG | Implement MVP CLI Loop |
 | 2207 | CHG | Implement AI SOP Generation Pipeline |
 | 2208 | CHG | Add CI And Test Gates |
+| 2209 | CHG | Add Professional SOP Render Templates |
+| 2210 | PLN | Professional Render Template Milestones |
+| 2211 | CHG | Show Cursor And Strengthen Demo Highlights |
 
 ---
 

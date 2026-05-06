@@ -7,6 +7,7 @@ from pathlib import Path
 
 from .metadata import write_text_atomic
 from .render import _ass_escape, _ass_time
+from .templates import get_template
 from .timeline import Timeline
 
 
@@ -15,18 +16,45 @@ class CaptionOutputs:
     srt: Path
     ass: Path
     markdown: Path
+    intro_ass: Path | None = None
+    outro_ass: Path | None = None
 
 
-def generate_caption_assets(recording_dir: Path) -> CaptionOutputs:
+def generate_caption_assets(
+    recording_dir: Path,
+    *,
+    template: str | None = None,
+    canvas: tuple[int, int] | None = None,
+) -> CaptionOutputs:
     recording_dir = Path(recording_dir)
     timeline = Timeline.load(recording_dir / "timeline.json")
+    template_obj = get_template(template)
     srt = recording_dir / "sop.srt"
     ass = recording_dir / "sop.ass"
     markdown = recording_dir / "sop.md"
     write_text_atomic(srt, _srt_text(timeline.data["events"]))
-    write_text_atomic(ass, _ass_text(timeline.data))
+    if template_obj.name == "debug":
+        ass_text = _ass_text(timeline.data)
+        intro_text = None
+        outro_text = None
+    else:
+        ass_text = template_obj.main_ass_text(timeline.data, canvas=canvas)
+        intro_text = template_obj.intro_ass_text(timeline.data)
+        outro_text = template_obj.outro_ass_text(timeline.data) if hasattr(template_obj, "outro_ass_text") else None
+    write_text_atomic(ass, ass_text)
     write_text_atomic(markdown, _markdown_text(timeline.data))
-    return CaptionOutputs(srt=srt, ass=ass, markdown=markdown)
+    intro_ass = _write_or_clear(recording_dir / "intro.ass", intro_text)
+    outro_ass = _write_or_clear(recording_dir / "outro.ass", outro_text)
+    return CaptionOutputs(srt=srt, ass=ass, markdown=markdown, intro_ass=intro_ass, outro_ass=outro_ass)
+
+
+def _write_or_clear(path: Path, text: str | None) -> Path | None:
+    if text:
+        write_text_atomic(path, text)
+        return path
+    if path.exists():
+        path.unlink()
+    return None
 
 
 def _caption_events(events: list[dict]) -> list[dict]:
