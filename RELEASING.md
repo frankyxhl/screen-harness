@@ -47,8 +47,15 @@ That's it. No secrets to add.
    - GitHub Release at `https://github.com/frankyxhl/screen-harness/releases/tag/vX.Y.Z`
    - PyPI page at `https://pypi.org/project/screen-harness/X.Y.Z/`
 
-The workflow asserts `pyproject.toml` version matches the tag (minus
-the `v`). Mismatch → build fails before any publish.
+The workflow has two pre-publish gates:
+
+1. **`verify-tag`** — refuses to release a tag whose commit isn't reachable
+   from `origin/main`. Tags from a stale feature branch fail before any
+   build/publish step runs.
+2. **`build`** — asserts the tag (minus `v`) matches `pyproject.toml`
+   version. Mismatch fails before any publish.
+
+Both must pass before `github-release` and `pypi-publish` are allowed to run.
 
 ## Yanking / hotfixing
 
