@@ -26,30 +26,35 @@ def open_repo_in_chrome() -> None:
 
 
 recording_dir = start_recording("chrome_github_repo_demo")
+intro(
+    "This video demonstrates the Screen Harness GitHub repository",
+    subtitle="Chrome opens GitHub and reviews the project page.",
+    countdown=5,
+)
 
 chapter("Open Screen Harness on GitHub")
 
-step("Launch Chrome")
+step("Launch Chrome", note="Open a clean Chrome window for the repository.")
 caption("Open Google Chrome and start a fresh browser window.", duration=3.0)
 open_repo_in_chrome()
 wait(3.0)
 
-step("Visit the repository")
+step("Visit the repository", note="Navigate directly to github.com/frankyxhl/screen-harness.")
 caption("Navigate to github.com/frankyxhl/screen-harness.", duration=4.0)
 highlight_region(150, 70, 1180, 70, text="Repository URL", duration=3.0)
 wait(3.0)
 
-step("Review the project header")
+step("Review the project header", note="Confirm the repository name and top-level project context.")
 caption("Confirm the Screen Harness repository page is open.", duration=4.0)
 highlight_region(220, 145, 1120, 150, text="Repository header", duration=4.0)
 wait(3.0)
 
-step("Inspect the files")
+step("Inspect the files", note="Scan the README and file list to understand the MVP structure.")
 caption("Use the README and file list to inspect the MVP structure.", duration=4.0)
 highlight_region(230, 360, 980, 430, text="Project files", duration=4.0)
 wait(3.0)
 
 stop_recording()
-final_video = render()
+final_video = render(template="training")
 print(f"recording: {recording_dir}")
 print(f"final video: {final_video}")

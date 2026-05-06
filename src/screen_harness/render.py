@@ -69,6 +69,51 @@ def build_render_command(
     ]
 
 
+def build_intro_source_command(
+    output: Path,
+    *,
+    width: int,
+    height: int,
+    fps: float,
+    duration: float,
+    ffmpeg: str | None = None,
+) -> list[str]:
+    """Build an FFmpeg command that creates a white intro source clip."""
+    ffmpeg = ffmpeg or _default_render_ffmpeg()
+    return [
+        ffmpeg,
+        "-y",
+        "-f",
+        "lavfi",
+        "-i",
+        f"color=c=white:s={int(width)}x{int(height)}:r={float(fps)}:d={float(duration)}",
+        "-pix_fmt",
+        "yuv420p",
+        str(output),
+    ]
+
+
+def build_concat_command(intro: Path, main: Path, output: Path, *, ffmpeg: str | None = None) -> list[str]:
+    """Build an FFmpeg command that concatenates intro and main video streams."""
+    ffmpeg = ffmpeg or _default_render_ffmpeg()
+    # MVP training renders are video-only after intro concat; audio passthrough needs a later compatible silent-audio plan.
+    return [
+        ffmpeg,
+        "-y",
+        "-i",
+        str(intro),
+        "-i",
+        str(main),
+        "-filter_complex",
+        "[0:v:0][1:v:0]concat=n=2:v=1:a=0[v]",
+        "-map",
+        "[v]",
+        "-pix_fmt",
+        "yuv420p",
+        str(output),
+    ]
+
+
 def render_video(
     source: Path,
     ass: Path,
@@ -80,6 +125,28 @@ def render_video(
     output = Path(output)
     output.parent.mkdir(parents=True, exist_ok=True)
     cmd = build_render_command(source, ass, output, boxes=boxes, ffmpeg=ffmpeg)
+    return subprocess.run(cmd, check=False, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+
+
+def create_intro_source(
+    output: Path,
+    *,
+    width: int,
+    height: int,
+    fps: float,
+    duration: float,
+    ffmpeg: str | None = None,
+) -> subprocess.CompletedProcess[str]:
+    output = Path(output)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    cmd = build_intro_source_command(output, width=width, height=height, fps=fps, duration=duration, ffmpeg=ffmpeg)
+    return subprocess.run(cmd, check=False, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+
+
+def concat_videos(intro: Path, main: Path, output: Path, *, ffmpeg: str | None = None) -> subprocess.CompletedProcess[str]:
+    output = Path(output)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    cmd = build_concat_command(intro, main, output, ffmpeg=ffmpeg)
     return subprocess.run(cmd, check=False, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
 

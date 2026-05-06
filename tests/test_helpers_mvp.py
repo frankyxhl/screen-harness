@@ -26,6 +26,48 @@ def test_render_requires_stopped_recording(monkeypatch, tmp_path):
         helpers.render()
 
 
+def test_intro_and_step_helpers_write_professional_metadata(monkeypatch, tmp_path):
+    timeline = helpers.Timeline.create(
+        path=tmp_path / "timeline.json",
+        recording_id="demo",
+        title="Demo",
+        source_video="raw.mp4",
+    )
+    state = helpers.RuntimeState(root=tmp_path, recording_dir=tmp_path, timeline=timeline, started_at=0.0)
+    monkeypatch.setattr(helpers, "_STATE", state)
+    monkeypatch.setattr(helpers.time, "monotonic", lambda: 2.5)
+
+    helpers.intro("This video demonstrates Screen Harness", subtitle="Open Chrome", countdown=5)
+    helpers.step("Open Chrome", note="Launch the browser", number=1)
+
+    loaded = helpers.Timeline.load(tmp_path / "timeline.json")
+    assert loaded.data["intro"]["title"] == "This video demonstrates Screen Harness"
+    assert loaded.data["intro"]["subtitle"] == "Open Chrome"
+    assert loaded.data["intro"]["countdown"] == 5
+    assert loaded.data["events"][0]["title"] == "Open Chrome"
+    assert loaded.data["events"][0]["note"] == "Launch the browser"
+    assert loaded.data["events"][0]["number"] == 1
+
+
+def test_render_passes_template_to_caption_generation(monkeypatch, tmp_path):
+    recording = tmp_path / "recordings" / "demo"
+    recording.mkdir(parents=True)
+    (recording / "raw.mp4").write_bytes(b"video")
+    helpers.Timeline.create(path=recording / "timeline.json", recording_id="demo", title="Demo", source_video="raw.mp4")
+    state = helpers.RuntimeState(root=tmp_path, recording_dir=recording)
+    monkeypatch.setattr(helpers, "_STATE", state)
+
+    outputs = helpers.CaptionOutputs(srt=recording / "sop.srt", ass=recording / "sop.ass", markdown=recording / "sop.md")
+    with patch("screen_harness.helpers.generate_caption_assets", return_value=outputs) as captions, \
+         patch("screen_harness.helpers.render_video") as render_video:
+        render_video.return_value.returncode = 0
+        render_video.return_value.stdout = ""
+
+        assert helpers.render(template="training") == recording / "final.mp4"
+
+    captions.assert_called_once_with(recording, template="training")
+
+
 def test_probe_canvas_returns_none_when_ffprobe_missing(tmp_path):
     video = tmp_path / "raw.mp4"
     video.write_bytes(b"not really video")

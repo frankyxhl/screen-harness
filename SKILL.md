@@ -14,11 +14,12 @@ screen-harness init
 screen-harness doctor
 screen-harness -c '
 start_recording("demo")
-step("Open the target app")
+intro("This video demonstrates the target workflow", subtitle="A short guided recording", countdown=5)
+step("Open the target app", note="Prepare the app before the main action.")
 caption("Open the target app and prepare the workflow.")
 wait(3)
 stop_recording()
-render()
+render(template="training")
 '
 screen-harness transcribe <recording_id>
 screen-harness sop ai-generate <recording_id>
@@ -31,7 +32,7 @@ screen-harness redact scan <recording_id>
 2. Use `screen-harness -c` with helpers pre-imported.
 3. Keep `raw.mp4` immutable.
 4. Edit `timeline.json` when needed.
-5. Re-run `screen-harness render <recording_id>` after timeline edits.
+5. Re-run `screen-harness render <recording_id> --template training` after timeline edits when a professional step-card video is needed.
 6. Put reusable executable helpers in `agent-workspace/agent_helpers.py`.
 7. Put durable process knowledge in `agent-workspace/domain-skills/<system>/<flow>.md`.
 8. For AI-style SOP generation, place an MVP manual transcript in `recordings/<id>/manual_transcript.txt`, run `transcribe`, then run `sop ai-generate`.
@@ -42,13 +43,14 @@ screen-harness redact scan <recording_id>
 - `stop_recording()`
 - `wait(seconds)`
 - `wait_for_user(message)`
+- `intro(title, subtitle=None, countdown=5)`
 - `chapter(title)`
-- `step(title)`
+- `step(title, note=None, number=None)`
 - `caption(text, duration=None)`
 - `click(x, y, label=None)`
 - `highlight_region(x, y, w, h, text=None, duration=3.0)`
 - `redact_region(x, y, w, h, reason=None, duration=None)`
-- `render()`
+- `render(template=None)`
 - `generate_sop_captions()`
 - `generate_ai_sop()`
 - `generate_markdown_sop()`

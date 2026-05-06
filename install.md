@@ -33,6 +33,12 @@ The renderer will prefer that binary when it exists. Override with:
 SCREEN_HARNESS_FFMPEG=/path/to/ffmpeg screen-harness render <recording_id>
 ```
 
+Use the professional training template when you want an intro card and numbered lower-corner step cards:
+
+```bash
+screen-harness render <recording_id> --template training
+```
+
 ## macOS Permissions
 
 Run:
@@ -68,7 +74,7 @@ Then run:
 screen-harness transcribe <recording_id>
 screen-harness sop ai-generate <recording_id>
 screen-harness redact scan <recording_id>
-screen-harness render <recording_id>
+screen-harness render <recording_id> --template training
 ```
 
 The derived files are `transcript.srt`, `transcript.json`, regenerated `sop.srt` / `sop.ass` / `sop.md`, and `redaction_suggestions.json`. Provenance is recorded under `metadata.json`.

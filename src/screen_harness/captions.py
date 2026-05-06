@@ -7,6 +7,7 @@ from pathlib import Path
 
 from .metadata import write_text_atomic
 from .render import _ass_escape, _ass_time
+from .templates import get_template
 from .timeline import Timeline
 
 
@@ -15,18 +16,34 @@ class CaptionOutputs:
     srt: Path
     ass: Path
     markdown: Path
+    intro_ass: Path | None = None
 
 
-def generate_caption_assets(recording_dir: Path) -> CaptionOutputs:
+def generate_caption_assets(recording_dir: Path, *, template: str | None = None) -> CaptionOutputs:
     recording_dir = Path(recording_dir)
     timeline = Timeline.load(recording_dir / "timeline.json")
+    template_obj = get_template(template)
     srt = recording_dir / "sop.srt"
     ass = recording_dir / "sop.ass"
     markdown = recording_dir / "sop.md"
     write_text_atomic(srt, _srt_text(timeline.data["events"]))
-    write_text_atomic(ass, _ass_text(timeline.data))
+    if template_obj.name == "debug":
+        ass_text = _ass_text(timeline.data)
+        intro_text = None
+    else:
+        ass_text = template_obj.main_ass_text(timeline.data)
+        intro_text = template_obj.intro_ass_text(timeline.data)
+    write_text_atomic(ass, ass_text)
     write_text_atomic(markdown, _markdown_text(timeline.data))
-    return CaptionOutputs(srt=srt, ass=ass, markdown=markdown)
+    intro_ass = recording_dir / "intro.ass"
+    if intro_text:
+        write_text_atomic(intro_ass, intro_text)
+    elif intro_ass.exists():
+        intro_ass.unlink()
+        intro_ass = None
+    else:
+        intro_ass = None
+    return CaptionOutputs(srt=srt, ass=ass, markdown=markdown, intro_ass=intro_ass)
 
 
 def _caption_events(events: list[dict]) -> list[dict]:

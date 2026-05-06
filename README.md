@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/frankyxhl/screen-harness/actions/workflows/ci.yml/badge.svg)](https://github.com/frankyxhl/screen-harness/actions/workflows/ci.yml)
 
-Screen Harness is a CLI-first macOS tool for recording screen workflows and turning them into SOP videos and Markdown documents. It records an immutable `raw.mp4`, stores editable events in `timeline.json`, then renders captions, step titles, highlights, clicks, and redactions into `final.mp4`.
+Screen Harness is a CLI-first macOS tool for recording screen workflows and turning them into SOP videos and Markdown documents. It records an immutable `raw.mp4`, stores editable events in `timeline.json`, then renders captions, step titles, professional template overlays, highlights, clicks, and redactions into `final.mp4`.
 
 The MVP is intentionally small: it proves the local recording-to-rendering loop before adding a daemon, global hotkeys, or cloud AI providers.
 
@@ -12,6 +12,7 @@ The MVP is intentionally small: it proves the local recording-to-rendering loop 
 - Lets an agent or user add structured timeline events from Python helpers.
 - Generates `sop.srt`, `sop.ass`, and `sop.md` from `timeline.json`.
 - Renders `final.mp4` without mutating `raw.mp4`.
+- Supports `debug` and `training` render templates.
 - Loads reusable helpers from `agent-workspace/agent_helpers.py`.
 - Supports manual/offline transcript input for AI-style SOP caption generation.
 - Scans transcript and timeline text for sensitive strings such as emails and tokens.
@@ -35,7 +36,7 @@ Microphone can be `not detected`; the current MVP works without microphone input
 
 ## Run The Chrome/GitHub Demo
 
-The current demo script opens Google Chrome, visits this repository, adds subtitles and highlights, then renders a video.
+The current demo script opens Google Chrome, visits this repository, adds a white intro card with a countdown, shows numbered lower-corner step cards, and renders a video.
 
 ```bash
 uv run screen-harness -c 'exec(open("examples/expense_sop.py").read())'
@@ -72,16 +73,23 @@ Example:
 uv run screen-harness render chrome_github_repo_demo_20260506_150000
 ```
 
+Use the professional training template explicitly:
+
+```bash
+uv run screen-harness render <recording_id> --template training
+```
+
 ## Minimal Helper Example
 
 ```bash
 uv run screen-harness -c '
 start_recording("quick_demo")
-step("Open the target app")
+intro("This video demonstrates the quick demo", subtitle="A short Screen Harness example", countdown=5)
+step("Open the target app", note="Prepare the workflow for recording.")
 caption("Open the target app and prepare the workflow.")
 wait(3)
 stop_recording()
-render()
+render(template="training")
 '
 ```
 

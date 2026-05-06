@@ -70,3 +70,15 @@ def test_redact_scan_command_dispatches(tmp_path, monkeypatch):
             run.main()
 
     scan.assert_called_once_with(recording)
+
+
+def test_render_command_accepts_template_option(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    recording = tmp_path / "recordings" / "demo"
+    recording.mkdir(parents=True)
+
+    with patch("screen_harness.run.helper_api.render", return_value=recording / "final.mp4") as render:
+        with patch.object(sys, "argv", ["screen-harness", "render", "demo", "--template", "training"]):
+            run.main()
+
+    render.assert_called_once_with(recording, template="training")
