@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import textwrap
 from typing import Protocol
 
 from screen_harness.render import _ass_escape, _ass_time
@@ -58,7 +59,7 @@ class TrainingTemplate:
             "",
             "[V4+ Styles]",
             "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
-            f"Style: StepCard,{DEFAULT_FONT},32,&H00FFFFFF,&H000000FF,&H00202020,&HB0202020,1,0,0,0,100,100,0,0,3,1,0,1,72,72,82,1",
+            f"Style: StepCard,{DEFAULT_FONT},36,&H0025201B,&H000000FF,&H00FFFFFF,&H20F8F8F8,1,0,0,0,100,100,0,0,3,1,0,1,72,72,136,1",
             "",
             "[Events]",
             "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
@@ -69,7 +70,7 @@ class TrainingTemplate:
             number = int(event.get("number", index))
             title = f"{number:02d}  {event.get('title', 'Untitled step')}"
             note = event.get("note")
-            text = _ass_escape(title) if not note else f"{_ass_escape(title)}\\N{_ass_escape(note)}"
+            text = _step_card_text(title, note)
             lines.append(
                 f"Dialogue: 0,{_ass_time(event['t'])},{_ass_time(_step_end(event, next_event))},StepCard,,0,0,0,,{text}"
             )
@@ -122,6 +123,7 @@ _TEMPLATES: dict[str, RenderTemplate] = {
 }
 
 DEFAULT_FONT = "PingFang SC"
+STEP_NOTE_WIDTH = 60
 
 
 def get_template(name: str | None) -> RenderTemplate:
@@ -143,3 +145,12 @@ def _step_end(event: dict, next_event: dict | None) -> float:
     if next_event is None:
         return default_end
     return max(start + 0.5, min(default_end, float(next_event["t"]) - 0.2))
+
+
+def _step_card_text(title: str, note: str | None) -> str:
+    title_text = f"{{\\b1\\fs40}}{_ass_escape(title)}"
+    if not note:
+        return title_text
+    note_lines = textwrap.wrap(str(note), width=STEP_NOTE_WIDTH, break_long_words=False, break_on_hyphens=False) or [str(note)]
+    note_text = "\\N".join(_ass_escape(line) for line in note_lines)
+    return f"{title_text}\\N{{\\b0\\fs34}}{note_text}"

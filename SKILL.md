@@ -48,7 +48,7 @@ screen-harness redact scan <recording_id>
 - `step(title, note=None, number=None)`
 - `caption(text, duration=None)`
 - `click(x, y, label=None)`
-- `highlight_region(x, y, w, h, text=None, duration=3.0)`
+- `highlight_region(x, y, w, h, text=None, duration=3.0, color=None)`
 - `redact_region(x, y, w, h, reason=None, duration=None)`
 - `render(template=None)`
 - `generate_sop_captions()`

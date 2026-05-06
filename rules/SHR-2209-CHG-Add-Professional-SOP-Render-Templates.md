@@ -73,7 +73,8 @@ Trinity consultation with GLM, DeepSeek, and Claude Code agreed that this should
 7. Render main recording in `training` mode with lower-corner step cards:
    - sequence number and title line.
    - note/instruction line.
-   - dark translucent card, restrained size, CJK-capable font preference.
+   - light translucent card, restrained size, CJK-capable font preference.
+   - larger title/note sizing and enough bottom margin to avoid clipped wrapped text.
 8. Record render provenance in `metadata.json`, including selected template and render timestamp.
 9. Update the Chrome/GitHub demo to use `training`.
 10. Add focused tests for template dispatch, ASS generation, intro timing, CLI/helper wiring, metadata, and backward compatibility.
@@ -116,9 +117,10 @@ Reason: templates may need code, not just configuration, because they generate A
 ## Visual Defaults For First Template
 
 - Intro: white background, red title, dark gray subtitle, large centered countdown `5 4 3 2 1`.
-- Main overlay: lower-corner by default, dark translucent card.
+- Main overlay: lower-corner by default, light translucent card with dark text.
 - Step title: `01  Open Chrome`, bold, red/orange accent.
-- Step note: smaller white instruction line.
+- Step note: smaller dark instruction line, wrapped conservatively.
+- Highlight boxes: blue by default in professional demos, with per-event color override through `highlight_region(..., color=...)`.
 - Dwell: no overlap with next step; clamp card duration to a professional range.
 - Avoid full-screen subtitle blocks in `training`.
 

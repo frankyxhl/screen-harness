@@ -13,6 +13,7 @@ The MVP is intentionally small: it proves the local recording-to-rendering loop 
 - Generates `sop.srt`, `sop.ass`, and `sop.md` from `timeline.json`.
 - Renders `final.mp4` without mutating `raw.mp4`.
 - Supports `debug` and `training` render templates.
+- Lets highlight boxes choose a render color per event.
 - Loads reusable helpers from `agent-workspace/agent_helpers.py`.
 - Supports manual/offline transcript input for AI-style SOP caption generation.
 - Scans transcript and timeline text for sensitive strings such as emails and tokens.

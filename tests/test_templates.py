@@ -28,6 +28,10 @@ def test_training_ass_uses_numbered_lower_corner_step_cards():
 
     assert "Style: StepCard" in ass
     assert "Alignment" in ass
+    assert "&H0025201B" in ass
+    assert "&H20F8F8F8" in ass
+    assert "{\\b1\\fs40}01  Open Chrome" in ass
+    assert "{\\b0\\fs34}Launch the browser and prepare to visit the repository" in ass
     assert "01  Open Chrome" in ass
     assert "Launch the browser and prepare to visit the repository" in ass
     assert "02  Visit repository" in ass

@@ -68,6 +68,8 @@ The estimates assume conservative implementation using the existing FFmpeg/ASS p
   - countdown `5 4 3 2 1`;
   - lower-right or lower-left step card;
   - sequence number, step title, and step note.
+  - light card default with larger text and enough bottom margin for wrapped notes.
+  - blue highlight-box default plus per-event highlight color override.
 - Additive timeline fields:
   - top-level `intro`;
   - `step.note`;

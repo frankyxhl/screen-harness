@@ -37,6 +37,7 @@ class RuntimeState:
 
 
 _STATE = RuntimeState(root=Path.cwd())
+DEFAULT_HIGHLIGHT_COLOR = "blue@0.35"
 
 __all__ = [
     "start_recording",
@@ -204,8 +205,8 @@ def click(x: int, y: int, *, label: str | None = None, t: float | None = None) -
     _timeline().add_event("click", t=_event_time(t), x=x, y=y, label=label)
 
 
-def highlight_region(x: int, y: int, w: int, h: int, *, text: str | None = None, duration: float = 3.0) -> None:
-    _timeline().add_event("highlight", t=_event_time(None), rect=[x, y, w, h], text=text, duration=duration)
+def highlight_region(x: int, y: int, w: int, h: int, *, text: str | None = None, duration: float = 3.0, color: str | None = None) -> None:
+    _timeline().add_event("highlight", t=_event_time(None), rect=[x, y, w, h], text=text, duration=duration, color=color)
 
 
 def redact_region(x: int, y: int, w: int, h: int, *, reason: str | None = None, duration: float | None = None) -> None:
@@ -312,7 +313,17 @@ def _drawboxes(data: dict) -> list[DrawBox]:
     for event in data.get("events", []):
         if event["type"] == "highlight":
             x, y, w, h = event["rect"]
-            boxes.append(DrawBox(x=x, y=y, width=w, height=h, start=event["t"], duration=event.get("duration", 3.0), color="yellow@0.35"))
+            boxes.append(
+                DrawBox(
+                    x=x,
+                    y=y,
+                    width=w,
+                    height=h,
+                    start=event["t"],
+                    duration=event.get("duration", 3.0),
+                    color=event.get("color", DEFAULT_HIGHLIGHT_COLOR),
+                )
+            )
         elif event["type"] == "redact":
             x, y, w, h = event["rect"]
             boxes.append(DrawBox(x=x, y=y, width=w, height=h, start=event["t"], duration=event.get("duration"), color="black@0.85", thickness="fill"))
