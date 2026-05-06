@@ -70,4 +70,4 @@ def test_generate_caption_assets_writes_training_intro_ass(tmp_path):
 
     assert outputs.intro_ass is not None
     assert "This video demonstrates the GitHub repository" in outputs.intro_ass.read_text()
-    assert "01  Open Safari" in outputs.ass.read_text()
+    assert "{\\b1\\fs44\\c&H312822&}Open Safari" in outputs.ass.read_text()

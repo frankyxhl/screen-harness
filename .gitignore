@@ -8,3 +8,5 @@ dist/
 build/
 recordings/
 .screen-harness-spike/
+.coverage
+.claude/

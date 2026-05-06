@@ -16,8 +16,15 @@ def build_screen_record_command(
     framerate: int = 30,
     capture_cursor: bool = True,
     capture_mouse_clicks: bool = True,
+    region: tuple[int, int, int, int] | None = None,
 ) -> list[str]:
-    """Build an AVFoundation screen-recording command."""
+    """Build an AVFoundation screen-recording command.
+
+    `region`, if provided, is `(x, y, width, height)` in screen-pixel coordinates;
+    the recorder crops the AVFoundation capture to that rectangle so only the
+    target window (or area) is encoded. Width/height are rounded down to even
+    values to satisfy H.264.
+    """
     output = Path(output)
     av_input = f"{screen_index}:{audio_index if audio_index is not None else 'none'}"
     cmd = [
@@ -35,9 +42,19 @@ def build_screen_record_command(
         av_input,
         "-r",
         str(framerate),
-        "-pix_fmt",
-        "yuv420p",
     ]
+    if region is not None:
+        x, y, w, h = (int(v) for v in region)
+        if x < 0 or y < 0:
+            raise ValueError(f"region x/y must be non-negative, got ({x},{y})")
+        if w <= 0 or h <= 0:
+            raise ValueError(f"region width/height must be positive, got {w}x{h}")
+        w -= w % 2
+        h -= h % 2
+        if w == 0 or h == 0:
+            raise ValueError(f"region width/height collapsed to zero after even-rounding from {region}")
+        cmd.extend(["-vf", f"crop={w}:{h}:{x}:{y}"])
+    cmd.extend(["-pix_fmt", "yuv420p"])
     if duration is not None:
         cmd.extend(["-t", str(duration)])
     cmd.append(str(output))

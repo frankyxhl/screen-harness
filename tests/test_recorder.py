@@ -38,6 +38,47 @@ def test_build_screen_record_command_can_disable_cursor_capture():
     assert ["-capture_mouse_clicks", "false"] == [cmd[cmd.index("-capture_mouse_clicks")], cmd[cmd.index("-capture_mouse_clicks") + 1]]
 
 
+def test_build_screen_record_command_applies_region_crop():
+    output = Path("recordings/demo/raw.mp4")
+
+    cmd = build_screen_record_command(output, duration=5, region=(0, 25, 1920, 1055))
+
+    # Crop filter must precede -pix_fmt and use even dimensions.
+    vf_index = cmd.index("-vf")
+    assert cmd[vf_index + 1] == "crop=1920:1054:0:25"
+    assert cmd.index("-pix_fmt") > vf_index
+
+
+def test_build_screen_record_command_omits_crop_without_region():
+    output = Path("recordings/demo/raw.mp4")
+
+    cmd = build_screen_record_command(output, duration=5)
+
+    assert "-vf" not in cmd
+
+
+def test_build_screen_record_command_rejects_negative_region_origin():
+    import pytest
+
+    with pytest.raises(ValueError, match="non-negative"):
+        build_screen_record_command(
+            Path("recordings/demo/raw.mp4"),
+            duration=5,
+            region=(-10, 0, 1920, 1080),
+        )
+
+
+def test_build_screen_record_command_rejects_zero_region_size():
+    import pytest
+
+    with pytest.raises(ValueError, match="positive"):
+        build_screen_record_command(
+            Path("recordings/demo/raw.mp4"),
+            duration=5,
+            region=(0, 0, 0, 1080),
+        )
+
+
 def test_record_screen_fails_if_output_is_missing(tmp_path):
     output = tmp_path / "raw.mp4"
 

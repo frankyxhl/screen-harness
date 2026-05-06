@@ -82,3 +82,145 @@ def test_render_command_accepts_template_option(tmp_path, monkeypatch):
             run.main()
 
     render.assert_called_once_with(recording, template="training")
+
+
+def test_help_output_lists_commands(capsys):
+    with patch.object(sys, "argv", ["screen-harness", "--help"]):
+        run.main()
+
+    out = capsys.readouterr().out
+    assert "screen-harness doctor" in out
+    assert "screen-harness render" in out
+    assert "screen-harness sop ai-generate" in out
+
+
+def test_doctor_command_exits_with_run_doctor_status():
+    with patch("screen_harness.run.run_doctor", return_value=0):
+        with patch.object(sys, "argv", ["screen-harness", "doctor"]):
+            with pytest.raises(SystemExit) as exc:
+                run.main()
+    assert exc.value.code == 0
+
+
+def test_init_command_initializes_project(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    with patch("screen_harness.run.init_project") as init:
+        with patch.object(sys, "argv", ["screen-harness", "init"]):
+            run.main()
+    init.assert_called_once_with(tmp_path)
+    assert "initialized screen-harness workspace" in capsys.readouterr().out
+
+
+def test_dash_c_without_script_argument_errors():
+    with patch.object(sys, "argv", ["screen-harness", "-c"]):
+        with pytest.raises(SystemExit, match="Usage: screen-harness -c"):
+            run.main()
+
+
+def test_sop_generate_command_dispatches(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    recording = tmp_path / "recordings" / "demo"
+    recording.mkdir(parents=True)
+
+    with patch("screen_harness.run.generate_caption_assets") as captions:
+        captions.return_value.markdown = recording / "sop.md"
+        with patch.object(sys, "argv", ["screen-harness", "sop", "generate", "demo"]):
+            run.main()
+
+    captions.assert_called_once_with(recording)
+    assert "sop.md" in capsys.readouterr().out
+
+
+def test_sop_ai_generate_surfaces_missing_transcript(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    recording = tmp_path / "recordings" / "demo"
+    recording.mkdir(parents=True)
+
+    with patch("screen_harness.run.generate_ai_sop", side_effect=FileNotFoundError("no transcript")):
+        with patch.object(sys, "argv", ["screen-harness", "sop", "ai-generate", "demo"]):
+            with pytest.raises(SystemExit, match="no transcript"):
+                run.main()
+
+
+def test_helpers_open_prints_path(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    with patch.object(sys, "argv", ["screen-harness", "helpers", "open"]):
+        run.main()
+
+    assert str(tmp_path / "agent-workspace" / "agent_helpers.py") in capsys.readouterr().out
+
+
+def test_helpers_reset_writes_default_helpers(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    with patch.object(sys, "argv", ["screen-harness", "helpers", "reset"]):
+        run.main()
+    helpers_file = tmp_path / "agent-workspace" / "agent_helpers.py"
+    assert helpers_file.exists()
+    assert "reset agent_helpers.py" in capsys.readouterr().out
+
+
+def test_helpers_diff_emits_unified_diff(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    # Initialise then mutate the file so diff has content to emit.
+    with patch.object(sys, "argv", ["screen-harness", "helpers", "reset"]):
+        run.main()
+    capsys.readouterr()  # flush
+    helpers_file = tmp_path / "agent-workspace" / "agent_helpers.py"
+    helpers_file.write_text(helpers_file.read_text() + "\n# user customization\n")
+
+    with patch.object(sys, "argv", ["screen-harness", "helpers", "diff"]):
+        run.main()
+    out = capsys.readouterr().out
+    assert "user customization" in out
+
+
+def test_spike_render_smoke_runs_with_returncode(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    work_dir = tmp_path / "spike"
+    fake_result = type("R", (), {"returncode": 0, "stdout": "ok\n"})()
+    with patch("screen_harness.run.render_smoke", return_value=fake_result) as smoke:
+        with patch.object(sys, "argv", ["screen-harness", "spike", "render-smoke", str(work_dir)]):
+            with pytest.raises(SystemExit) as exc:
+                run.main()
+    smoke.assert_called_once_with(work_dir)
+    assert exc.value.code == 0
+
+
+def test_spike_record_runs_with_returncode(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    output = tmp_path / "out.mp4"
+    fake_result = type("R", (), {"returncode": 0, "stdout": "ok\n"})()
+    with patch("screen_harness.run.record_screen", return_value=fake_result) as record:
+        with patch.object(sys, "argv", ["screen-harness", "spike", "record", str(output), "5"]):
+            with pytest.raises(SystemExit) as exc:
+                run.main()
+    record.assert_called_once_with(output, duration=5.0)
+    assert exc.value.code == 0
+
+
+def test_unknown_command_falls_through_to_help():
+    with patch.object(sys, "argv", ["screen-harness", "bogus"]):
+        with pytest.raises(SystemExit) as exc:
+            run.main()
+    assert "screen-harness doctor" in str(exc.value)
+
+
+def test_template_arg_returns_none_when_unspecified():
+    assert run._template_arg([]) is None
+
+
+def test_template_arg_rejects_unknown_flag():
+    with pytest.raises(SystemExit, match="--template"):
+        run._template_arg(["--bogus", "training"])
+
+
+def test_provider_arg_rejects_unknown_flag():
+    with pytest.raises(SystemExit, match="--provider"):
+        run._provider_arg(["--bogus", "manual"])
+
+
+def test_recording_dir_accepts_existing_relative_path(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    nested = tmp_path / "alt" / "demo"
+    nested.mkdir(parents=True)
+    assert run._recording_dir(str(nested)) == nested

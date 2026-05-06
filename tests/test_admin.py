@@ -1,3 +1,6 @@
+from subprocess import CompletedProcess
+from unittest.mock import patch
+
 from screen_harness import admin
 
 
@@ -65,3 +68,79 @@ def test_doctor_reports_missing_ffmpeg(monkeypatch):
     assert "ffmpeg: missing" in summary
     assert "screen capture: not detected" in summary
     assert "render ffmpeg: missing" in summary
+
+
+def test_ffmpeg_version_returns_first_line():
+    completed = CompletedProcess(["ffmpeg"], 0, "ffmpeg version 8.0.1\nbuilt with…\n")
+    with patch("screen_harness.admin.subprocess.run", return_value=completed):
+        assert admin.ffmpeg_version("ffmpeg").startswith("ffmpeg version 8.0.1")
+
+
+def test_ffmpeg_filters_returns_parsed_set():
+    completed = CompletedProcess(
+        ["ffmpeg"],
+        0,
+        "Filters:\n  T. drawbox           V->V       Draw a box.\n  .. subtitles         V->V       Render subs.\n",
+    )
+    with patch("screen_harness.admin.subprocess.run", return_value=completed):
+        assert admin.ffmpeg_filters("ffmpeg") == {"drawbox", "subtitles"}
+
+
+def test_list_avfoundation_devices_surfaces_error_line():
+    completed = CompletedProcess(
+        ["ffmpeg"],
+        1,
+        "[AVFoundation indev @ 0x1] AVFoundation video devices:\n"
+        "[AVFoundation indev @ 0x1] [0] Capture screen 0\n"
+        "Error opening input: Input/output error\n",
+    )
+    with patch("screen_harness.admin.subprocess.run", return_value=completed):
+        devices, error = admin.list_avfoundation_devices("ffmpeg")
+    assert devices.video == [{"index": "0", "name": "Capture screen 0"}]
+    assert error == "Error opening input: Input/output error"
+
+
+def test_ffprobe_binary_uses_explicit_env(monkeypatch, tmp_path):
+    fake = tmp_path / "ffprobe"
+    fake.write_text("")
+    monkeypatch.setenv("SCREEN_HARNESS_FFPROBE", str(fake))
+    assert admin.ffprobe_binary() == str(fake)
+
+
+def test_ffprobe_binary_falls_back_to_ffmpeg_sibling(monkeypatch, tmp_path):
+    monkeypatch.delenv("SCREEN_HARNESS_FFPROBE", raising=False)
+    sibling = tmp_path / "ffprobe"
+    sibling.write_text("")
+    monkeypatch.setenv("SCREEN_HARNESS_FFMPEG", str(tmp_path / "ffmpeg"))
+    assert admin.ffprobe_binary() == str(sibling)
+
+
+def test_doctor_reports_render_filters_when_available(monkeypatch):
+    monkeypatch.setattr(admin.shutil, "which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr(admin, "bundled_full_ffmpeg", lambda: "/opt/full/bin/ffmpeg")
+    monkeypatch.setattr(admin, "ffmpeg_version", lambda path: "ffmpeg version 8.0.1")
+    monkeypatch.setattr(
+        admin,
+        "list_avfoundation_devices",
+        lambda path: (
+            admin.AVFoundationDevices(
+                video=[{"index": "0", "name": "Capture screen 0"}],
+                audio=[],
+            ),
+            None,
+        ),
+    )
+    monkeypatch.setattr(admin, "ffmpeg_filters", lambda path: {"subtitles", "drawbox"})
+
+    summary = admin.doctor()
+
+    assert "ffmpeg: ok" in summary
+    assert "screen capture: ok" in summary
+    assert "render ffmpeg: ok" in summary
+
+
+def test_run_doctor_prints_summary_and_returns_zero(monkeypatch, capsys):
+    monkeypatch.setattr(admin, "doctor", lambda: "stub-summary")
+    rc = admin.run_doctor()
+    assert rc == 0
+    assert "stub-summary" in capsys.readouterr().out

@@ -26,8 +26,10 @@ def test_bdd_training_template_creates_professional_video_assets(tmp_path):
     markdown = outputs.markdown.read_text()
     assert "This video demonstrates the Screen Harness GitHub repository" in intro_ass
     assert "5" in intro_ass and "1" in intro_ass
-    assert "01  Open Safari" in main_ass
+    assert "{\\b1\\fs44\\c&HB5AD00&}01" in main_ass
+    assert "{\\b1\\fs44\\c&H312822&}Open Safari" in main_ass
     assert "Launch the browser in a clean window." in main_ass
-    assert "02  Visit repository" in main_ass
+    assert "{\\b1\\fs44\\c&HB5AD00&}02" in main_ass
+    assert "{\\b1\\fs44\\c&H312822&}Visit repository" in main_ass
     assert "Repository walkthrough" not in main_ass
     assert "# Safari GitHub Demo" in markdown

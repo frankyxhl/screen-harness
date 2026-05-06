@@ -17,6 +17,16 @@ def test_safari_demo_documents_target_repo_and_is_noninteractive():
     assert not any("\u4e00" <= char <= "\u9fff" for char in demo)
 
 
+def test_safari_demo_records_only_the_safari_window_region():
+    """BDD: the demo derives a crop region from Safari's bounds so the recording
+    excludes the macOS menu bar and Dock."""
+    demo = (ROOT / "examples" / "expense_sop.py").read_text()
+
+    assert "open_safari_and_get_region" in demo
+    assert "get bounds of front window" in demo
+    assert "start_recording(\"safari_github_repo_demo\", region=region)" in demo
+
+
 def test_readme_documents_ci_and_demo_command():
     readme = (ROOT / "README.md").read_text()
 
