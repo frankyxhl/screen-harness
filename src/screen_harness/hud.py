@@ -546,9 +546,15 @@ def run_hud_subprocess() -> None:
         label.setStringValue_(f"● REC {format_rec_time(elapsed)}")
         pill_panel.orderFront_(None)
 
-        # 1-second repeating timer on the main thread
-        t = NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(
-            1.0, pill_panel, "display:", None, True
+        # 1-second repeating timer on the main thread.  Use the block API
+        # (macOS 10.12+) so the Python `_tick` callable runs every second,
+        # updating the label content.  The target+selector form would only
+        # redraw with stale content because Python functions are not valid
+        # ObjC selectors — CHG-2218 §Scope §1 requires monotonic-clock-derived
+        # text per tick.
+        state.started_at = started_at
+        t = NSTimer.scheduledTimerWithTimeInterval_repeats_block_(
+            1.0, True, _tick
         )
         timer_ref[0] = t
 
