@@ -3,8 +3,9 @@
 **Applies to:** SHR project
 **Last updated:** 2026-05-12
 **Last reviewed:** 2026-05-12
-**Status:** Proposed
-**Revision:** R2 — addresses Trinity R1 (GLM PASS 9.15, DeepSeek FAIL 7.7, MiniMax FAIL 8.4)
+**Status:** Approved
+**Revision:** R3 — addresses MiniMax R2 (B4 emitter algorithm + A1 tail canonicity)
+**Approved by:** Trinity unanimous: GLM R2 PASS 9.35, DeepSeek R2 PASS 9.6, MiniMax R3 PASS 9.5.
 **Date:** 2026-05-12
 **Requested by:** Frank Xu (D3 in SHR-2212)
 **Priority:** Medium
