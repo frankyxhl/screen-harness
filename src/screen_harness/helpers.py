@@ -144,16 +144,19 @@ def start_recording(
         validate_region_for_screen(region, picked.device)
 
     # Determine if the HUD can and should be shown.
-    # The HUD requires space outside the crop rect; check that the region
-    # is strictly smaller than the screen in at least width OR height.
+    # The HUD requires a pill anchor that fits entirely outside the crop rect.
+    # Use pick_rec_pill_anchor to check: if it returns "none", no placement fits.
     hud_eligible = False
     if hud and region is not None:
-        _bx, _by, bw, bh = picked.device.bounds
-        rx, ry, rw, rh = region
-        _has_outside_space = (rw < bw) or (rh < bh)
-        if not _has_outside_space:
+        from .hud import pick_rec_pill_anchor, transform_region_to_appkit
+        _crop_appkit = transform_region_to_appkit(region, picked.device)
+        _bx, _by, _bw, _bh = picked.device.bounds
+        _sc = picked.device.backing_scale
+        _screen_appkit = (float(_bx), float(_by), _bw / _sc, _bh / _sc)
+        _pill_anchor = pick_rec_pill_anchor(_crop_appkit, _screen_appkit)
+        if _pill_anchor == "none":
             print(
-                "Full-screen recording — HUD disabled; pass region= to enable",
+                "HUD disabled — crop region is too close to screen edges for the REC pill to fit outside.",
                 flush=True,
             )
         else:

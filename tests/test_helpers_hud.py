@@ -283,6 +283,38 @@ def isolated_state_real_wait(tmp_path):
     _helpers._STATE.screen_inventory = None
 
 
+class TestTightCropDisablesHUD:
+    def test_tight_crop_disables_hud_with_warning(self, isolated_state, capsys):
+        """region=(10,10,1900,1060) on 1920×1080 screen — pick_rec_pill_anchor
+        returns 'none', so HUD must be suppressed (hud_active=False) and the
+        'too close to screen edges' warning must be printed."""
+        tmp_path = isolated_state
+        ffmpeg_proc = _ffmpeg_popen_mock()
+        hud_launched = []
+
+        def _fake_popen(cmd, **kwargs):
+            cmd_str = " ".join(str(c) for c in cmd)
+            if "screen_harness.hud" in cmd_str:
+                hud_launched.append(True)
+            return ffmpeg_proc
+
+        with patch("screen_harness.screens.probe_screens", return_value=[_FAKE_SCREEN]), \
+             patch("screen_harness.screens.resolve_screen", return_value=_FAKE_PICK), \
+             patch("screen_harness.helpers._safe_ffmpeg_version", return_value="n/a"), \
+             patch("subprocess.Popen", side_effect=_fake_popen):
+            rec_dir = _helpers.start_recording(
+                "tight-crop-hud-test",
+                region=(10, 10, 1900, 1060),
+                hud=True,
+            )
+
+        assert not hud_launched, "HUD subprocess should not launch for tight crop"
+        metadata = json.loads((rec_dir / "metadata.json").read_text())
+        assert metadata.get("hud_active") is False
+        captured = capsys.readouterr()
+        assert "too close to screen edges" in captured.out
+
+
 class TestStartRecordingRaisesWhenFFmpegDiesImmediately:
     """Integration: start_recording propagates RecordingStartFailed and resets state."""
 

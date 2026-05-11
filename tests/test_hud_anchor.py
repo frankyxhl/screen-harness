@@ -85,22 +85,29 @@ class TestStackedPlacements:
 
 
 # ---------------------------------------------------------------------------
-# Edge fallback: only when NO 8-position placement fits
+# None sentinel: returned when NO 8-position placement fits (fail-closed)
 # ---------------------------------------------------------------------------
 
-class TestEdgeFallback:
-    def test_full_screen_crop_falls_back_to_edge(self):
-        crop = (0, 0, 1920, 1080)  # exact full screen
-        anchor = pick_rec_pill_anchor(crop, SCREEN)
-        assert anchor.startswith("edge:")
-        side = anchor.split(":", 1)[1]
-        assert side in ("top", "bottom", "left", "right")
+class TestNoneAnchor:
+    def test_tight_crop_returns_none_anchor(self):
+        """crop=(10,10,1900,1060) on 1920×1080 — all 8 placements overflow → 'none'."""
+        crop = (10, 10, 1900, 1060)
+        assert pick_rec_pill_anchor(crop, SCREEN) == "none"
 
-    def test_oversized_crop_falls_back_to_edge(self):
-        """Crop larger than screen → all 8 placements overflow → edge."""
+    def test_full_screen_crop_returns_none_anchor(self):
+        """Exact full-screen crop → 'none' (replaces old edge: expectation)."""
+        crop = (0, 0, 1920, 1080)
+        assert pick_rec_pill_anchor(crop, SCREEN) == "none"
+
+    def test_oversized_crop_returns_none_anchor(self):
+        """Crop larger than screen → all 8 placements overflow → 'none'."""
         crop = (-10, -10, 2000, 1200)
-        anchor = pick_rec_pill_anchor(crop, SCREEN)
-        assert anchor.startswith("edge:")
+        assert pick_rec_pill_anchor(crop, SCREEN) == "none"
+
+    def test_none_anchor_rejected_by_pill_placement(self):
+        """pill_placement('none', …) raises ValueError — same as any unknown anchor."""
+        with pytest.raises(ValueError, match="Unknown anchor"):
+            pill_placement("none", (0, 0, 100, 100))
 
 
 # ---------------------------------------------------------------------------

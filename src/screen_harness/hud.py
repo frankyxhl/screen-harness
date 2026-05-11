@@ -147,8 +147,7 @@ def pill_placement(
       placement fits (Codex bot finding P2):
       ``above-right``, ``above-left``, ``below-right``, ``below-left``.
 
-    Plus ``edge:top|bottom|left|right`` as a last-resort centered placement
-    on the named screen edge — only reached when no other position fits.
+    Unknown anchors (including ``"none"``) raise ``ValueError``.
     """
     cx, cy, cw, ch = crop_rect
     table = {
@@ -188,8 +187,8 @@ def pick_rec_pill_anchor(
          ``bottom-right`` > ``top-right`` > ``bottom-left`` > ``top-left``
       2. Stacked placements (pill above/below crop):
          ``above-right`` > ``below-right`` > ``above-left`` > ``below-left``
-      3. ``edge:<side>`` fallback for the no-fit case (crop covers the
-         full screen).
+      3. ``"none"`` sentinel when no placement fits — callers must suppress
+         the pill rather than place it inside the crop region.
 
     *crop_rect* and *screen_rect* are both ``(x, y, w, h)`` in the same
     coordinate system (AppKit points).
@@ -214,26 +213,10 @@ def pick_rec_pill_anchor(
         if _fits(px, py):
             return anchor
 
-    # All corners blocked — fall back to edge closest to crop centre
-    crop_cx = cx + cw / 2
-    crop_cy = cy + ch / 2
-    screen_cx = sx + sw / 2
-    screen_cy = sy + sh / 2
-
-    # Distances from crop centre to each screen edge
-    dist_right  = abs((sx + sw) - crop_cx)
-    dist_left   = abs(cx - sx)
-    dist_top    = abs((sy + sh) - crop_cy)
-    dist_bottom = abs(cy - sy)
-
-    edge_distances = {
-        "right":  dist_right,
-        "left":   dist_left,
-        "top":    dist_top,
-        "bottom": dist_bottom,
-    }
-    closest = min(edge_distances, key=edge_distances.__getitem__)
-    return f"edge:{closest}"
+    # No placement fits — crop is too close to all screen edges.
+    # Return "none" so callers can suppress the pill rather than bleed it
+    # into the crop region.
+    return "none"
 
 
 def _rect_contains_point(
@@ -438,8 +421,13 @@ def _make_rec_pill_panel(
     screen_appkit: tuple[float, float, float, float],
     *,
     ak: dict,
-) -> object:
-    """Create and position the REC pill panel."""
+) -> tuple:
+    """Create and position the REC pill panel.
+
+    Returns ``(panel, label)`` on success, or ``(None, None)`` when
+    ``pick_rec_pill_anchor`` returns ``"none"`` (crop too close to all
+    screen edges — placing the pill would bleed into the crop region).
+    """
     NSMakeRect = ak["NSMakeRect"]
     NSTextField = ak["NSTextField"]
     NSColor = ak["NSColor"]
@@ -450,32 +438,13 @@ def _make_rec_pill_panel(
         pill_w=_PILL_WIDTH, pill_h=_PILL_HEIGHT, margin=_PILL_MARGIN,
     )
 
-    sx, sy, sw, sh = screen_appkit
+    if anchor == "none":
+        return (None, None)
 
-    if anchor.startswith("edge:"):
-        # No 4-corner / 4-stack placement fits — crop covers the whole
-        # screen.  Place the pill at the screen edge named by the
-        # fallback; the pill will visually overlap the crop, but recording
-        # is already full-screen so the user is informed via the warning
-        # in helpers.start_recording.
-        side = anchor.split(":", 1)[1]
-        if side == "right":
-            px = sx + sw - _PILL_WIDTH - _PILL_MARGIN
-            py = sy + (sh - _PILL_HEIGHT) / 2
-        elif side == "left":
-            px = sx + _PILL_MARGIN
-            py = sy + (sh - _PILL_HEIGHT) / 2
-        elif side == "top":
-            px = sx + (sw - _PILL_WIDTH) / 2
-            py = sy + sh - _PILL_HEIGHT - _PILL_MARGIN
-        else:  # bottom
-            px = sx + (sw - _PILL_WIDTH) / 2
-            py = sy + _PILL_MARGIN
-    else:
-        px, py = pill_placement(
-            anchor, crop_appkit,
-            pill_w=_PILL_WIDTH, pill_h=_PILL_HEIGHT, margin=_PILL_MARGIN,
-        )
+    px, py = pill_placement(
+        anchor, crop_appkit,
+        pill_w=_PILL_WIDTH, pill_h=_PILL_HEIGHT, margin=_PILL_MARGIN,
+    )
 
     frame = NSMakeRect(px, py, _PILL_WIDTH, _PILL_HEIGHT)
     panel = _make_panel(frame, ak=ak, color_rgb=_HUD_RED_RGB)
@@ -615,26 +584,28 @@ def run_hud_subprocess() -> None:
         # Frame panels
         panels = _make_frame_panels(crop_appkit, ak=ak)
 
-        # Pill panel
+        # Pill panel — may be (None, None) when crop is too close to screen edges.
         pill_panel, label = _make_rec_pill_panel(crop_appkit, screen_appkit, ak=ak)
         pill_panel_ref[0] = pill_panel
         pill_label = label
 
-        elapsed = int(time.monotonic() - started_at)
-        label.setStringValue_(f"● REC {format_rec_time(elapsed)}")
-        pill_panel.orderFront_(None)
-
-        # 1-second repeating timer on the main thread.  Use the block API
-        # (macOS 10.12+) so the Python `_tick` callable runs every second,
-        # updating the label content.  The target+selector form would only
-        # redraw with stale content because Python functions are not valid
-        # ObjC selectors — CHG-2218 §Scope §1 requires monotonic-clock-derived
-        # text per tick.
         state.started_at = started_at
-        t = NSTimer.scheduledTimerWithTimeInterval_repeats_block_(
-            1.0, True, _tick
-        )
-        timer_ref[0] = t
+
+        if pill_panel is not None:
+            elapsed = int(time.monotonic() - started_at)
+            label.setStringValue_(f"● REC {format_rec_time(elapsed)}")
+            pill_panel.orderFront_(None)
+
+            # 1-second repeating timer on the main thread.  Use the block API
+            # (macOS 10.12+) so the Python `_tick` callable runs every second,
+            # updating the label content.  The target+selector form would only
+            # redraw with stale content because Python functions are not valid
+            # ObjC selectors — CHG-2218 §Scope §1 requires monotonic-clock-derived
+            # text per tick.
+            t = NSTimer.scheduledTimerWithTimeInterval_repeats_block_(
+                1.0, True, _tick
+            )
+            timer_ref[0] = t
 
     def _on_stop():
         state.handle({"cmd": "stop"})
