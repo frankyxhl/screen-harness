@@ -44,6 +44,7 @@ def main() -> None:
         raise SystemExit(run_doctor())
     if args[0] == "probe-screens":
         _run_probe_screens(args[1:])
+        return
     if args[0] == "init":
         init_project(Path.cwd())
         print("initialized screen-harness workspace")

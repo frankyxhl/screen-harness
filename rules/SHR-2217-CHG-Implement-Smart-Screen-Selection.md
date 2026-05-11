@@ -54,9 +54,16 @@ Implement PRP-2213 R2 verbatim. Concrete deliverables:
      round-trip.
    - `tests/fixtures/picked_screen.schema.json` — JSON schema for the
      `picked_screen` block.
-   - `tests/test_screens_invariant.py` — macos-gated paired
-     coloured-square AV↔CGDirectDisplayID invariant test (skipped on CI
-     without a Mac runner via `pytest.mark.macos`).
+   - `tests/test_screens_invariant.py` — macos-gated structural smoke test
+     (`len(probe_screens()) ≥ 1`, no null display_ids). **The paired
+     coloured-square AV↔CGDirectDisplayID binding test promised in PRP §Tests
+     is deferred to D2's PR** — implementing it requires the FFmpeg
+     orchestration that D2 already touches, so doing it here would force a
+     premature dependency. The smoke test plus the algorithmic argument
+     (`CGGetActiveDisplayList` is documented to be deterministic + AVFoundation
+     enumerates screens in the same order) carry D1; D2's PR adds the paired
+     coloured-square test as a hard gate before any HUD code merges. Tracked
+     as a follow-up commitment in the D2 CHG.
 
 7. PyObjC added as **optional** dependency in `pyproject.toml`
    `[project.optional-dependencies]` under `macos`. Falls back to
@@ -128,3 +135,4 @@ still readable.
 | Date | Change | By |
 |------|--------|----|
 | 2026-05-11 | Initial CHG, implements approved PRP-2213 R2 | Claude Code |
+| 2026-05-11 | R1 code review fixes (GLM FAIL 8.35, MiniMax FAIL 8.6): run.py probe-screens missing return → fixed; no-PyObjC display_id=0 collided with camera-rejection guard → use -1 sentinel; document deferral of paired coloured-square invariant test to D2's PR; add happy-path tests for auto-front-app + _get_app_window_center | Claude Code |

@@ -87,13 +87,15 @@ def probe_screens(*, ffmpeg: str = "ffmpeg") -> list[ScreenDevice]:
         if n_video == 0:
             return []
         # Best-effort: assume all non-zero-indexed video devices after index 0
-        # are screens.  Use the last video device as main.
+        # are screens.  Use the last video device as main.  display_id=-1 is
+        # the "unknown-but-trust-me" sentinel distinct from kCGNullDirectDisplay
+        # (= 0) used by the camera-rejection gate.
         main_device = av_devices.video[-1]
         return [
             ScreenDevice(
                 av_index=int(main_device["index"]),
                 av_name=main_device["name"],
-                display_id=0,
+                display_id=-1,
                 bounds=(0, 0, 0, 0),
                 is_main=True,
                 backing_scale=1.0,
@@ -245,12 +247,23 @@ def resolve_screen(
 # App window helpers
 # ---------------------------------------------------------------------------
 
+_APP_NAME_RE = __import__("re").compile(r"^[A-Za-z0-9 ._&'-]{1,64}$")
+
+
 def _get_app_window_center(app_name: str) -> tuple[int, int] | None:
     """Return (cx, cy) of the front window of *app_name* via AppleScript.
 
     Returns None if the app is not running, has no front window, or if
     osascript is unavailable / denies Automation permission.
+
+    Rejects names containing characters outside `[A-Za-z0-9 ._&'-]` to
+    prevent AppleScript injection through the embedded string literal.
     """
+    if not _APP_NAME_RE.match(app_name):
+        logger.warning(
+            "App name %r rejected: must match %s", app_name, _APP_NAME_RE.pattern
+        )
+        return None
     script = (
         f'tell application "System Events"\n'
         f'  if not (exists process "{app_name}") then return "NOTRUNNING"\n'

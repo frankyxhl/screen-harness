@@ -215,3 +215,79 @@ def test_picked_screen_json_schema_roundtrip():
     assert isinstance(blob["is_main"], bool)
     assert isinstance(blob["backing_scale"], float)
     assert isinstance(blob["reason"], str)
+
+
+# ---------------------------------------------------------------------------
+# R2 review fixes: auto-front-app happy path + osascript injection guard
+# ---------------------------------------------------------------------------
+
+def test_get_app_window_center_happy_path():
+    """_get_app_window_center parses osascript output to (cx, cy)."""
+    from screen_harness import screens as screens_mod
+    fake = MagicMock(returncode=0, stdout="400,300\n", stderr="")
+    with patch.object(screens_mod.subprocess, "run", return_value=fake):
+        result = screens_mod._get_app_window_center("Safari")
+    assert result == (400, 300)
+
+
+def test_get_app_window_center_rejects_injection_names():
+    """App names with osascript-injection-capable chars are refused without invoking subprocess."""
+    from screen_harness import screens as screens_mod
+    with patch.object(screens_mod.subprocess, "run") as run_mock:
+        for bad in [
+            'Safari"\nset x to do shell script "rm -rf"',  # quote + newline injection
+            "Safari;ls",                                    # semicolon
+            'Safari" & "evil',                              # quote splice
+            "A" * 65,                                       # too long
+            "",                                             # empty
+        ]:
+            assert screens_mod._get_app_window_center(bad) is None
+        run_mock.assert_not_called()
+
+
+def test_get_app_window_center_not_running_returns_none():
+    from screen_harness import screens as screens_mod
+    fake = MagicMock(returncode=0, stdout="NOTRUNNING\n", stderr="")
+    with patch.object(screens_mod.subprocess, "run", return_value=fake):
+        assert screens_mod._get_app_window_center("Safari") is None
+
+
+def test_resolve_screen_auto_front_app_picks_second_display():
+    """auto:<App> happy path: window centre inside second screen's bounds → pick screen 2."""
+    fixture = (FIXTURES_DIR / "en.txt").read_text()
+    quartz = _make_quartz_mock(n_displays=2)
+    # Display 0 at (0,0,1920,1080); display 1 at (1920,0,1920,1080) (side-by-side).
+    quartz.CGDisplayBounds.side_effect = lambda did: {
+        1001: (0, 0, 1920, 1080),
+        1002: (1920, 0, 1920, 1080),
+    }[did]
+
+    appkit = MagicMock()
+    appkit.NSScreen.screens.return_value = []  # no NSScreen lookups needed
+
+    with patch("screen_harness.screens._import_quartz", return_value=quartz), \
+         patch("screen_harness.screens._import_appkit", return_value=appkit), \
+         patch(
+             "screen_harness.screens.list_avfoundation_devices",
+             return_value=(parse_avfoundation_devices(_two_screen_fixture()), None),
+         ), \
+         patch(
+             "screen_harness.screens._get_app_window_center",
+             return_value=(2500, 540),  # inside display 1002's bounds
+         ):
+        picked = resolve_screen(None, app="Safari")
+
+    assert picked.reason == "auto-front-app:Safari"
+    assert picked.device.display_id == 1002
+    assert picked.device.av_index == 2  # one camera + two screens → screens at idx 1 and 2
+
+
+def _two_screen_fixture() -> str:
+    """One camera + two screens — for the auto-front-app multi-display test."""
+    return (
+        "[AVFoundation indev @ 0x100] AVFoundation video devices:\n"
+        "[AVFoundation indev @ 0x100] [0] FaceTime HD Camera\n"
+        "[AVFoundation indev @ 0x100] [1] Capture screen 0\n"
+        "[AVFoundation indev @ 0x100] [2] Capture screen 1\n"
+        "[AVFoundation indev @ 0x100] AVFoundation audio devices:\n"
+    )
