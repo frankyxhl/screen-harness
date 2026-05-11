@@ -55,12 +55,19 @@ def canonicalise(text: str) -> str:
 def emit_frontmatter(d: dict) -> str:
     """Emit a 2-key YAML block (name + description only, alphabetical order).
 
-    Raises ValueError for unknown keys, multi-line values, or description > 1024 chars.
+    Raises ValueError if the dict does not contain exactly {name, description},
+    for multi-line values, or description > 1024 chars.
     """
-    allowed = {"name", "description"}
-    extras = set(d) - allowed
-    if extras:
-        raise ValueError(f"Unknown frontmatter keys: {sorted(extras)}")
+    REQUIRED = {"name", "description"}
+    if set(d) != REQUIRED:
+        missing = REQUIRED - set(d)
+        extras = set(d) - REQUIRED
+        msg_parts = []
+        if missing:
+            msg_parts.append(f"missing keys: {sorted(missing)}")
+        if extras:
+            msg_parts.append(f"unknown keys: {sorted(extras)}")
+        raise ValueError(f"Frontmatter must contain exactly name+description; {'; '.join(msg_parts)}")
     lines = ["---"]
     for key in sorted(d.keys()):              # ← explicit alphabetical sort
         value = d[key]

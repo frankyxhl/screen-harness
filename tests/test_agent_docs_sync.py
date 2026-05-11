@@ -152,8 +152,37 @@ def test_skill_description_too_long_raises():
 
 def test_skill_frontmatter_rejects_unknown_keys():
     d = {"name": "screen-harness", "description": "short", "extra": "bad"}
-    with pytest.raises(ValueError, match="Unknown frontmatter keys"):
+    with pytest.raises(ValueError, match="unknown keys: \\['extra'\\]"):
         sync.emit_frontmatter(d)
+
+
+# ---------------------------------------------------------------------------
+# test_skill_frontmatter_rejects_missing_name
+# ---------------------------------------------------------------------------
+
+def test_skill_frontmatter_rejects_missing_name():
+    d = {"description": "x"}
+    with pytest.raises(ValueError, match="missing keys: \\['name'\\]"):
+        sync.emit_frontmatter(d)
+
+
+# ---------------------------------------------------------------------------
+# test_skill_frontmatter_rejects_missing_description
+# ---------------------------------------------------------------------------
+
+def test_skill_frontmatter_rejects_missing_description():
+    d = {"name": "screen-harness"}
+    with pytest.raises(ValueError, match="missing keys: \\['description'\\]"):
+        sync.emit_frontmatter(d)
+
+
+# ---------------------------------------------------------------------------
+# test_skill_frontmatter_rejects_empty_dict
+# ---------------------------------------------------------------------------
+
+def test_skill_frontmatter_rejects_empty_dict():
+    with pytest.raises(ValueError, match="missing keys: \\['description', 'name'\\]"):
+        sync.emit_frontmatter({})
 
 
 # ---------------------------------------------------------------------------
