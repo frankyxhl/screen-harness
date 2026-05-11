@@ -3,8 +3,9 @@
 **Applies to:** SHR project
 **Last updated:** 2026-05-11
 **Last reviewed:** 2026-05-11
-**Status:** Proposed
+**Status:** Approved
 **Revision:** R2 — addresses Trinity R1 review (GLM FAIL 8.4, DeepSeek FAIL 6.3, MiniMax FAIL 5.8)
+**Approved by:** Trinity R2 — glm PASS 9.2, deepseek PASS 9.2, minimax PASS 9.2 (3/3 unanimous, all R1 blockers closed, zero new blockers)
 **Date:** 2026-05-11
 **Requested by:** Frank Xu (D2 in SHR-2212)
 **Priority:** High
