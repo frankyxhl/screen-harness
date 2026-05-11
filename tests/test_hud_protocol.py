@@ -6,7 +6,7 @@ import json
 
 import pytest
 
-from screen_harness.hud import HUDState, parse_command
+from screen_harness.hud import HUDState, format_rec_time, parse_command
 
 
 class TestParseCommand:
@@ -93,3 +93,39 @@ class TestHUDState:
         cmd = {"cmd": "start", "screen": {}, "region": [0, 0, 100, 100], "started_at": 1234.5}
         state.handle(cmd)
         assert state.started_at == pytest.approx(1234.5)
+
+
+class TestFormatRecTime:
+    def test_zero(self):
+        assert format_rec_time(0) == "00:00:00"
+
+    def test_one_second(self):
+        assert format_rec_time(1) == "00:00:01"
+
+    def test_one_minute(self):
+        assert format_rec_time(60) == "00:01:00"
+
+    def test_one_hour(self):
+        assert format_rec_time(3600) == "01:00:00"
+
+    def test_hms_mixed(self):
+        assert format_rec_time(3661) == "01:01:01"
+
+    def test_large_hours(self):
+        assert format_rec_time(36000) == "10:00:00"
+
+    def test_59_minutes_59_seconds(self):
+        assert format_rec_time(3599) == "00:59:59"
+
+
+class TestParseStatusCommand:
+    def test_parse_status_command(self):
+        line = '{"cmd": "status"}'
+        result = parse_command(line)
+        assert result["cmd"] == "status"
+
+    def test_hud_state_handles_status(self):
+        state = HUDState()
+        state.handle({"cmd": "start", "screen": {}, "region": [0, 0, 100, 100], "started_at": 0.0})
+        state.handle({"cmd": "status"})
+        assert state.state == "running"

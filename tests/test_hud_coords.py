@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from screen_harness.hud import transform_region_to_appkit
+from screen_harness.hud import compute_frame_stroke_rects, transform_region_to_appkit
 from screen_harness.screens import ScreenDevice
 
 
@@ -138,3 +138,58 @@ class TestTransformDualScreen:
         assert y == 380.0
         assert w == 800.0
         assert h == 600.0
+
+
+class TestComputeFrameStrokeRects:
+    """Tests for compute_frame_stroke_rects: 4-strip decomposition."""
+
+    def test_returns_four_strips(self):
+        strips = compute_frame_stroke_rects((100.0, 380.0, 800.0, 600.0))
+        assert len(strips) == 4
+
+    def test_default_offset_is_4(self):
+        """Default offset_pts=4 means each strip is 4 pts wide."""
+        top, bottom, left, right = compute_frame_stroke_rects((100.0, 380.0, 800.0, 600.0))
+        assert top[3] == 4  # height of top strip
+        assert bottom[3] == 4
+        assert left[2] == 4  # width of left strip
+        assert right[2] == 4
+
+    def test_top_strip_position(self):
+        """Top strip sits immediately above the crop rect."""
+        top, *_ = compute_frame_stroke_rects((100.0, 380.0, 800.0, 600.0), offset_pts=4)
+        x, y, w, h = top
+        # Top strip: x-offset=96, y+h=980, w+2*offset=808, height=4
+        assert x == 96.0
+        assert y == 980.0
+        assert w == 808.0
+        assert h == 4.0
+
+    def test_bottom_strip_position(self):
+        _, bottom, *_ = compute_frame_stroke_rects((100.0, 380.0, 800.0, 600.0), offset_pts=4)
+        x, y, w, h = bottom
+        assert x == 96.0
+        assert y == 376.0  # 380 - 4
+        assert w == 808.0
+        assert h == 4.0
+
+    def test_left_strip_position(self):
+        _, _, left, _ = compute_frame_stroke_rects((100.0, 380.0, 800.0, 600.0), offset_pts=4)
+        x, y, w, h = left
+        assert x == 96.0   # 100 - 4
+        assert y == 376.0  # 380 - 4
+        assert w == 4.0
+        assert h == 608.0  # 600 + 2*4
+
+    def test_right_strip_position(self):
+        *_, right = compute_frame_stroke_rects((100.0, 380.0, 800.0, 600.0), offset_pts=4)
+        x, y, w, h = right
+        assert x == 900.0  # 100 + 800
+        assert y == 376.0
+        assert w == 4.0
+        assert h == 608.0
+
+    def test_custom_offset(self):
+        top, _, left, _ = compute_frame_stroke_rects((0.0, 0.0, 100.0, 50.0), offset_pts=8)
+        assert top[3] == 8
+        assert left[2] == 8

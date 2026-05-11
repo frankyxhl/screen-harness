@@ -39,7 +39,7 @@ def stub_screen_resolution(request):
     Tests in test_screens*.py exercise the real functions and opt out by
     file path. Everywhere else (helpers, recorder, …) gets a stable fake.
     """
-    if "test_screens" in request.node.fspath.basename:
+    if "test_screens" in request.node.fspath.basename or "test_hud" in request.node.fspath.basename:
         yield
         return
     with patch("screen_harness.screens.probe_screens", return_value=[_FAKE_SCREEN]), \
