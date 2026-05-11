@@ -9,6 +9,8 @@ The MVP stays intentionally small: it proves the local recording → rendering l
 ## What It Does
 
 - Records the macOS screen with FFmpeg (AVFoundation).
+- **Smart screen selection** (new in v0.2.0): auto-detects the right display via `screen=None` (main), `screen="display:2"` (1-indexed position), `screen=N` (raw AVFoundation index, validated to be a screen), or `app="Safari"` (resolves to the display containing Safari's front window). Refuses to record from the FaceTime camera even if it shares AV index 0. Run `screen-harness probe-screens` to list every active display.
+- **Recording HUD overlay** (new in v0.2.0): when `region=` is set, a red `● REC HH:MM:SS` pill and 4-pt frame appear *outside* the capture region so the user sees what is being recorded — without bleeding into `raw.mp4`. Disable per call with `hud=False`. Suppressed automatically for full-screen captures.
 - Optionally crops the recording to a single window region (no Dock, no menu bar) via the `region=(x, y, w, h)` argument on `start_recording`.
 - Lets an agent or user add structured timeline events from Python helpers (`intro`, `step`, `caption`, `highlight_region`, `outro`, …).
 - Generates `sop.srt`, `sop.ass`, and `sop.md` from `timeline.json`.
@@ -30,16 +32,19 @@ uv run screen-harness init
 uv run screen-harness doctor
 ```
 
-Expected MVP signals:
+Expected signals:
 
 ```text
 screen capture: ok
 render ffmpeg: ok
+picked-screen-default: [N] Capture screen 0
 ```
 
-Microphone can be `not detected`; the current MVP works without microphone input.
+Microphone can be `not detected`; recording works without microphone input.
 
-Run `screen-harness probe-screens` (or `probe-screens --json`) to list every active display with its AVFoundation index, CGDirectDisplayID, pixel bounds, and whether it is the main display. This is useful for diagnosing multi-monitor setups and verifying that `start_recording` will pick the correct screen. Install `screen-harness[macos]` for full multi-display support (requires PyObjC).
+**macOS extra** (recommended): `uv sync --extra macos` installs PyObjC (Quartz + Cocoa + AVFoundation). Without it, `probe_screens` cannot reliably distinguish cameras from displays in mixed-DPI multi-monitor setups, and the recording HUD subprocess won't render. The extra is dev-default; CI runners under `[dependency-groups.dev]` get it via the darwin guard.
+
+Run `screen-harness probe-screens` (or `probe-screens --json`) to list every active display with its AVFoundation index, CGDirectDisplayID, pixel bounds, NSScreen point origin/size, backing scale, and whether it is the main display.
 
 ## Run The Safari/GitHub Demo
 
@@ -91,7 +96,7 @@ uv run screen-harness render <recording_id> --template training
 
 | Helper | Purpose |
 |--------|---------|
-| `start_recording(name, *, screen=None, app=None, region=None, capture_cursor=True, capture_mouse_clicks=True)` | Start FFmpeg AVFoundation capture. `screen` accepts an int AVFoundation index, `"display:N"` (1-indexed), or `None` (auto-picks main display). `app="Safari"` resolves to the display containing Safari's front window. `region=(x, y, w, h)` crops to that screen rect. |
+| `start_recording(name, *, screen=None, app=None, region=None, hud=True, capture_cursor=True, capture_mouse_clicks=True)` | Start FFmpeg AVFoundation capture. `screen` accepts an int AVFoundation index, `"display:N"` (1-indexed), `"auto:Safari"`, or `None` (auto-picks main display). `app="Safari"` resolves to the display containing Safari's front window. `region=(x, y, w, h)` crops to that screen rect (raises `RegionOutOfBoundsError` on overflow). `hud=True` (default when `region=` set) shows a red `● REC` pill + frame *outside* the crop. Writes a typed `picked_screen` block + `hud_active: bool` to `metadata.json`. |
 | `stop_recording()` | Finalize the capture and update `metadata.json`. |
 | `wait(seconds)`, `wait_for_user(msg)` | Pace the script. |
 | `intro(title, *, subtitle=None, countdown=5)` | Configure the pre-roll intro card. |
@@ -109,7 +114,7 @@ uv run screen-harness render <recording_id> --template training
 
 ```bash
 uv run screen-harness -c '
-start_recording("quick_demo")
+start_recording("quick_demo", region=(200, 200, 1000, 700))
 intro("This video demonstrates the quick demo", subtitle="A short Screen Harness example", countdown=5)
 step("Open the target app", note="Prepare the workflow for recording.")
 caption("Open the target app and prepare the workflow.")
@@ -119,6 +124,8 @@ stop_recording()
 render(template="training")
 '
 ```
+
+While this runs you should see the red `● REC HH:MM:SS` pill and a 4-pt red frame around the (200,200,1000,700) crop rect. They appear only on screen — `raw.mp4` is clean.
 
 ## AI SOP Generation
 
@@ -148,12 +155,22 @@ uv run screen-harness render <recording_id>
 
 ```text
 src/screen_harness/       CLI, recording, rendering, timeline, transcript, SOP logic
+                            hud.py     — recording HUD overlay (D2)
+                            screens.py — smart screen selection (D1)
 examples/                 Runnable demo scripts
 agent-workspace/          User-editable helper and domain-skill workspace
 interaction-skills/       Reusable interaction notes
 rules/                    Alfred planning and change records
+scripts/                  Multi-agent docs sync (D3)
+                            sync_agent_docs.py   — regenerate CLAUDE.md/copilot/SKILL.md
+                            check_agent_docs.py  — CI drift detection
+                            agent-docs-tails/    — per-tool tails authored alongside AGENTS.md
 tests/                    Unit, BDD, and end-to-end tests
-SKILL.md                  AI-agent oriented install + usage prompt
+AGENTS.md                 Canonical source of always-on agent instructions (LF AAF spec)
+CLAUDE.md                 Generated — read by Claude Code
+.github/copilot-instructions.md
+                          Generated — read by Copilot Chat (when opt-in enabled)
+SKILL.md                  Generated — Anthropic Skill bundle entry point
 ```
 
 ## Development
@@ -165,7 +182,7 @@ uv run python -m compileall -q src tests
 af validate
 ```
 
-Current test posture: **90 tests, ~86% line coverage** across unit, BDD-style, and FFmpeg-backed end-to-end tests (the e2e tests skip cleanly when FFmpeg lacks the `subtitles` / `drawbox` filters).
+Current test posture: **268 passing, 1 skipped** across unit, BDD-style, FFmpeg-backed end-to-end, and macOS-gated integration tests (the macOS-gated tests skip cleanly on Linux CI and on terminal-launched Python processes that cannot reach the WindowServer — see SHR-2216 for details).
 
 ## CI/CD
 
@@ -173,7 +190,10 @@ GitHub Actions runs on pull requests and pushes to `main`:
 
 - `test`: Python `3.14` with `pytest` and `compileall`.
 - `alfred`: validates `rules/` with `uvx --from fx-alfred af validate`.
+- `agent-docs`: runs `scripts/check_agent_docs.py` to fail-fast if `AGENTS.md` (or any tail file) was edited without regenerating `CLAUDE.md` / `.github/copilot-instructions.md` / `SKILL.md`.
 - `package`: builds source and wheel distributions with `uv build`, then uploads `dist/*` as the `screen-harness-dist` workflow artifact.
+
+A separate **`release.yml`** workflow fires on `v*` tag pushes (see [RELEASING.md](RELEASING.md)) — runs tests, builds wheel+sdist, creates a GitHub Release, and publishes to PyPI via Trusted Publisher (OIDC; no API token).
 
 ## Use as an Agent Skill or Coding-Agent Instructions
 
