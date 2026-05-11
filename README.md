@@ -39,6 +39,8 @@ render ffmpeg: ok
 
 Microphone can be `not detected`; the current MVP works without microphone input.
 
+Run `screen-harness probe-screens` (or `probe-screens --json`) to list every active display with its AVFoundation index, CGDirectDisplayID, pixel bounds, and whether it is the main display. This is useful for diagnosing multi-monitor setups and verifying that `start_recording` will pick the correct screen. Install `screen-harness[macos]` for full multi-display support (requires PyObjC).
+
 ## Run The Safari/GitHub Demo
 
 The current demo script forces Safari to a deterministic `1920×1080` window, derives the crop region from Safari's actual bounds (so the recording excludes the Dock and menu bar), opens the repository on github.com, calls out the URL bar / repo header / file list / README, and finally holds a 4-second outro card with the project URL.
@@ -89,7 +91,7 @@ uv run screen-harness render <recording_id> --template training
 
 | Helper | Purpose |
 |--------|---------|
-| `start_recording(name, *, region=None, capture_cursor=True, capture_mouse_clicks=True)` | Start FFmpeg AVFoundation capture. `region=(x, y, w, h)` crops to that screen rect — combine with AppleScript-driven window placement to record a single app. |
+| `start_recording(name, *, screen=None, app=None, region=None, capture_cursor=True, capture_mouse_clicks=True)` | Start FFmpeg AVFoundation capture. `screen` accepts an int AVFoundation index, `"display:N"` (1-indexed), or `None` (auto-picks main display). `app="Safari"` resolves to the display containing Safari's front window. `region=(x, y, w, h)` crops to that screen rect. |
 | `stop_recording()` | Finalize the capture and update `metadata.json`. |
 | `wait(seconds)`, `wait_for_user(msg)` | Pace the script. |
 | `intro(title, *, subtitle=None, countdown=5)` | Configure the pre-roll intro card. |

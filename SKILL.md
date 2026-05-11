@@ -95,7 +95,7 @@ render(template="training")
 
 | Helper | What it does |
 |--------|--------------|
-| `start_recording(name, *, region=None, capture_cursor=True, capture_mouse_clicks=True, screen=None, mic=None)` | Begin AVFoundation capture. `region=(x, y, w, h)` crops to a screen rect (e.g. a single app window). |
+| `start_recording(name, *, screen=None, app=None, region=None, capture_cursor=True, capture_mouse_clicks=True, mic=None)` | Begin AVFoundation capture. `screen` is an int AV index, `"display:N"` (1-indexed), or `None` (auto-picks main display). `app="Safari"` resolves to the display containing that app's front window. `region=(x, y, w, h)` crops to a screen rect. |
 | `stop_recording()` | End capture, finalize `metadata.json`. |
 | `wait(seconds)` / `wait_for_user(msg)` | Pace the script. |
 | `intro(title, *, subtitle=None, countdown=5)` | Pre-roll intro card on charcoal background. |

@@ -4,6 +4,10 @@ from __future__ import annotations
 
 import subprocess
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .screens import ScreenDevice
 
 
 def build_screen_record_command(
@@ -11,6 +15,7 @@ def build_screen_record_command(
     *,
     duration: int | float | None,
     screen_index: str = "0",
+    screen_device: "ScreenDevice | None" = None,
     audio_index: str | None = None,
     ffmpeg: str = "ffmpeg",
     framerate: int = 30,
@@ -24,8 +29,18 @@ def build_screen_record_command(
     the recorder crops the AVFoundation capture to that rectangle so only the
     target window (or area) is encoded. Width/height are rounded down to even
     values to satisfy H.264.
+
+    When `screen_device` is provided it overrides `screen_index` and the device
+    is validated to be a real screen (display_id != 0 sentinel).
     """
     output = Path(output)
+    if screen_device is not None:
+        if screen_device.display_id == 0:
+            raise ValueError(
+                f"refusing to record from device {screen_device.av_name!r}; "
+                "expected a screen device (display_id is 0 — kCGNullDirectDisplay sentinel)"
+            )
+        screen_index = str(screen_device.av_index)
     av_input = f"{screen_index}:{audio_index if audio_index is not None else 'none'}"
     cmd = [
         ffmpeg,
