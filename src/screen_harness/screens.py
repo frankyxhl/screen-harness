@@ -65,17 +65,28 @@ def _import_avfoundation():
     return AVFoundation
 
 
-def _count_real_cameras() -> int:
-    """Count physical video-input devices via AVFoundation.
+def _count_av_devices_before_screens() -> int:
+    """Count AVFoundation capture devices that FFmpeg lists *before* screens.
 
-    Screens are *not* AVCaptureDevices (they come from AVCaptureScreenInput +
-    CGDirectDisplayID), so this gives us a structural camera count distinct
-    from FFmpeg's avfoundation indev enumeration. Used to detect the
-    Screen-Recording-permission-missing case where FFmpeg lists ONLY the
-    camera but Quartz still reports a display.
+    FFmpeg's avfoundation indev orders its `[N]` indices as:
+      [0..N_video-1]                          AVMediaTypeVideo (cameras)
+      [N_video..N_video+N_muxed-1]            AVMediaTypeMuxed (HDMI/USB cap.)
+      [N_video+N_muxed..]                     Capture screen N
+
+    Screens are NOT AVCaptureDevices (they come from AVCaptureScreenInput +
+    CGDirectDisplayID), so we count cameras + muxed devices structurally via
+    AVFoundation, independent of FFmpeg's permission-dependent view. This is
+    the "things to skip past" offset for the screen binding.
+
+    Codex bot finding P1 (round 5): without the muxed term, hosts with
+    HDMI/USB capture hardware (e.g. Elgato Cam Link) inflate
+    `expected_screens` and probe_screens refuses to record even though real
+    screen devices are present.
     """
     av = _import_avfoundation()
-    return int(len(av.AVCaptureDevice.devicesWithMediaType_("vide")))
+    cameras = av.AVCaptureDevice.devicesWithMediaType_(av.AVMediaTypeVideo)
+    muxed = av.AVCaptureDevice.devicesWithMediaType_(av.AVMediaTypeMuxed)
+    return int(len(cameras)) + int(len(muxed))
 
 
 # ---------------------------------------------------------------------------
@@ -120,18 +131,19 @@ def probe_screens(*, ffmpeg: str = "ffmpeg") -> list[ScreenDevice]:
     display_ids: list[int] = list(display_ids_raw)[: int(count)]
     n_displays = len(display_ids)
 
-    # Camera count derived from AVFoundation directly (structural truth)
-    # rather than inferred from `n_video - n_displays`.  Inference is unsafe:
-    # when Screen Recording permission is missing, FFmpeg silently omits
-    # screen-capture devices but Quartz still reports displays, so the
-    # inferred `camera_count` drops to 0 and the camera at AV index 0 gets
-    # bound to a real display.  Codex bot finding P1 (round 3).
-    camera_count = _count_real_cameras()
+    # Offset derived from AVFoundation directly (structural truth) rather
+    # than inferred from `n_video - n_displays`.  Inference is unsafe: when
+    # Screen Recording permission is missing, FFmpeg silently omits screen
+    # devices but Quartz still reports displays, so the inferred offset
+    # drops to 0 and the camera at AV index 0 gets bound to a real display
+    # (Codex P1 round 3).  Includes AVMediaTypeMuxed so HDMI/USB capture
+    # hardware doesn't inflate `expected_screens` (Codex P1 round 5).
+    camera_count = _count_av_devices_before_screens()
     expected_screens = n_video - camera_count
     if expected_screens != n_displays:
         raise ScreenProbeError(
-            f"AVFoundation reports {n_video} video device(s) "
-            f"({camera_count} camera(s), {expected_screens} non-camera entries) "
+            f"AVFoundation reports {n_video} video-section device(s) "
+            f"({camera_count} camera/muxed, {expected_screens} non-camera entries) "
             f"but Quartz reports {n_displays} active display(s). "
             "FFmpeg is probably missing Screen Recording permission — grant it "
             "in System Settings → Privacy & Security → Screen & System Audio Recording."
