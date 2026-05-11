@@ -3,7 +3,8 @@
 **Applies to:** SHR project
 **Last updated:** 2026-05-12
 **Last reviewed:** 2026-05-12
-**Status:** Approved
+**Status:** Completed
+**Merged:** PR #9 (commit c4c4a362bc) on 2026-05-11; Trinity 3/3 PASS at 9.30–9.6 final code review + Codex bot 3 rounds (1 P1: SKILL.md frontmatter-first ordering; 2 P2: exact-keys validation, drift-test isolation).
 **Revision:** R3 — addresses MiniMax R2 (B4 emitter algorithm + A1 tail canonicity)
 **Approved by:** Trinity unanimous: GLM R2 PASS 9.35, DeepSeek R2 PASS 9.6, MiniMax R3 PASS 9.5.
 **Date:** 2026-05-12
