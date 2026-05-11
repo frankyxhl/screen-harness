@@ -356,7 +356,11 @@ def _make_panel(
     panel.setIgnoresMouseEvents_(True)
     panel.setOpaque_(True)
     r, g, b = color_rgb
-    panel.setBackgroundColor_(NSColor.colorWithCalibratedRed_green_blue_alpha_(r, g, b, 1.0))
+    # NOTE: Apple's #FF3B30 is defined in sRGB.  `colorWithCalibratedRed_…_`
+    # uses the legacy generic-RGB / gamma-1.8 space and drifts the captured
+    # pixel value enough to fall outside the selftest predicate's tight
+    # box on some display profiles.  Use sRGB explicitly.  (DeepSeek B1.)
+    panel.setBackgroundColor_(NSColor.colorWithSRGBRed_green_blue_alpha_(r, g, b, 1.0))
     behavior = (
         NSWindowCollectionBehaviorCanJoinAllSpaces
         | NSWindowCollectionBehaviorStationary

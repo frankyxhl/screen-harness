@@ -112,6 +112,7 @@ def test_startup_under_300ms():
     _skip_lifecycle_if_needed()
 
     proc = _launch_hud()
+    elapsed: float | None = None
     try:
         t0 = time.monotonic()
         proc.stdin.write(_START_CMD + "\n")
@@ -122,13 +123,13 @@ def test_startup_under_300ms():
         proc.stdin.flush()
 
         # Read one line from stdout (the status response)
-        proc.stdout.readline()  # may block; we rely on the timeout below
+        proc.stdout.readline()  # may block; we rely on the parent timeout
 
         elapsed = time.monotonic() - t0
-        assert elapsed <= 0.300, f"Startup status response took {elapsed*1000:.0f} ms > 300 ms"
-    except Exception:
-        pass
     finally:
+        # Teardown only — never swallow the assertion that follows.
+        # (DeepSeek B2 — earlier `except Exception: pass` silently masked
+        #  every timing failure, making the test vacuous.)
         try:
             proc.stdin.close()
         except Exception:
@@ -138,6 +139,9 @@ def test_startup_under_300ms():
         except subprocess.TimeoutExpired:
             proc.kill()
             proc.wait()
+
+    assert elapsed is not None, "Failed to obtain status response"
+    assert elapsed <= 0.300, f"Startup status response took {elapsed*1000:.0f} ms > 300 ms"
 
 
 @pytest.mark.macos
