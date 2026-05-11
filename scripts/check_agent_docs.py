@@ -32,15 +32,16 @@ def _load_sync():
     return mod
 
 
-def main() -> int:
+def main(repo_root: Path | None = None) -> int:
     sync = _load_sync()
 
-    agents_path = REPO_ROOT / "AGENTS.md"
-    tails_dir = Path(__file__).parent / "agent-docs-tails"
+    root = repo_root if repo_root is not None else REPO_ROOT
+    agents_path = root / "AGENTS.md"
+    tails_dir = root / "scripts" / "agent-docs-tails"
     targets = {
-        "claude": REPO_ROOT / "CLAUDE.md",
-        "copilot": REPO_ROOT / ".github" / "copilot-instructions.md",
-        "skill": REPO_ROOT / "SKILL.md",
+        "claude": root / "CLAUDE.md",
+        "copilot": root / ".github" / "copilot-instructions.md",
+        "skill": root / "SKILL.md",
     }
 
     agents_text = sync.canonicalise(agents_path.read_text(encoding="utf-8"))
@@ -67,7 +68,7 @@ def main() -> int:
                 actual = None
 
             if actual != expected:
-                drifted.append(str(output_path.relative_to(REPO_ROOT)))
+                drifted.append(str(output_path.relative_to(root)))
 
     if drifted:
         print("Agent-docs drift detected in:", file=sys.stderr)

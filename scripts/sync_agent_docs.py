@@ -115,12 +115,20 @@ def render_target(
         return canonicalise(banner + agents_body + tail_body)
 
 
-def main() -> None:
-    agents_path = REPO_ROOT / "AGENTS.md"
+def main(repo_root: Path | None = None) -> None:
+    root = repo_root if repo_root is not None else REPO_ROOT
+    tails_dir = root / "scripts" / "agent-docs-tails"
+    targets = {
+        "claude": root / "CLAUDE.md",
+        "copilot": root / ".github" / "copilot-instructions.md",
+        "skill": root / "SKILL.md",
+    }
+
+    agents_path = root / "AGENTS.md"
     agents_text = canonicalise(agents_path.read_text(encoding="utf-8"))
 
-    for target, output_path in TARGETS.items():
-        tail_path = TAILS_DIR / f"{target}.md"
+    for target, output_path in targets.items():
+        tail_path = tails_dir / f"{target}.md"
         tail_text = canonicalise(tail_path.read_text(encoding="utf-8"))
         tail_frontmatter, tail_body = parse_tail(tail_path)
 
@@ -131,7 +139,7 @@ def main() -> None:
 
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(content, encoding="utf-8")
-        print(f"Wrote {output_path.relative_to(REPO_ROOT)}")
+        print(f"Wrote {output_path.relative_to(root)}")
 
 
 if __name__ == "__main__":
