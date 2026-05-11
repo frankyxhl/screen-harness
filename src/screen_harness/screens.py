@@ -98,39 +98,18 @@ def probe_screens(*, ffmpeg: str = "ffmpeg") -> list[ScreenDevice]:
         quartz = _import_quartz()
         appkit = _import_appkit()
     except ImportError:
-        if n_video == 0:
-            return []
-        if n_video == 1:
-            # Only one video device + no PyObjC = cannot tell if it's the
-            # FaceTime camera or a Capture screen.  Refuse rather than
-            # silently risk recording the camera (the exact bug D1 exists to
-            # prevent).  Codex bot finding P2.
-            raise ScreenProbeError(
-                "PyObjC not installed and only one AVFoundation video device "
-                "available.  Cannot distinguish camera from screen.  "
-                "Install `screen-harness[macos]`, or grant Screen Recording "
-                "permission to FFmpeg so screen capture devices appear."
-            )
-        logger.warning(
-            "PyObjC not installed — screen detection degraded.  Assuming "
-            "the last AVFoundation video device is the main screen.  "
-            "Install screen-harness[macos] for verified multi-display support."
+        # Fail closed.  Without PyObjC there is no structural signal to
+        # distinguish a screen device from a camera (the "screens come last"
+        # convention breaks once virtual/Continuity cameras are installed —
+        # Codex bot finding P1 round 4).  Refuse and tell the user how to
+        # fix it; never silently risk recording the camera.
+        raise ScreenProbeError(
+            "PyObjC is required to safely identify screen capture devices.  "
+            "Install with `pip install 'screen-harness[macos]'` (or "
+            "`uv sync --group dev` for development).  Without PyObjC there is "
+            "no structural way to tell an AVFoundation camera apart from a "
+            "screen device, and Screen Harness refuses to guess."
         )
-        # Best-effort: AVFoundation conventionally enumerates cameras first,
-        # then screens.  Use the last video device as main.  display_id=-1 is
-        # the "unknown-but-trust-me" sentinel distinct from
-        # kCGNullDirectDisplay (= 0) used by the camera-rejection gate.
-        main_device = av_devices.video[-1]
-        return [
-            ScreenDevice(
-                av_index=int(main_device["index"]),
-                av_name=main_device["name"],
-                display_id=-1,
-                bounds=(0, 0, 0, 0),
-                is_main=True,
-                backing_scale=1.0,
-            )
-        ]
 
     # CGGetActiveDisplayList uses C out-parameters; PyObjC exposes it as
     # `(maxDisplays, None, None) -> (err, activeDisplays, count)`.  Calling

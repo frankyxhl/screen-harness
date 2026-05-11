@@ -307,19 +307,25 @@ def _two_screen_fixture() -> str:
 # Codex bot R1 findings (PR #5)
 # ---------------------------------------------------------------------------
 
-def test_probe_screens_raises_when_single_video_device_without_pyobjc():
-    """Codex P2: degraded single-device fallback must REFUSE, not silently
-    return the camera as a 'screen'."""
+def test_probe_screens_refuses_without_pyobjc():
+    """Codex P1/P2 rounds 2 & 4: degraded mode must always refuse — the
+    'screens come last' convention is unsafe in the presence of virtual or
+    Continuity cameras, and Screen Harness should fail closed rather than
+    risk recording a camera."""
     from screen_harness import screens as screens_mod
     from screen_harness.admin import AVFoundationDevices
 
-    single_camera = AVFoundationDevices(
-        video=[{"index": "0", "name": "FaceTime HD Camera"}],
+    devices = AVFoundationDevices(
+        video=[
+            {"index": "0", "name": "FaceTime HD Camera"},
+            {"index": "1", "name": "Continuity Camera"},
+            {"index": "2", "name": "Capture screen 0"},  # even with a real screen
+        ],
         audio=[],
     )
     with patch.object(screens_mod, "_import_quartz", side_effect=ImportError("no pyobjc")), \
-         patch.object(screens_mod, "list_avfoundation_devices", return_value=(single_camera, None)):
-        with pytest.raises(ScreenProbeError, match="Cannot distinguish camera from screen"):
+         patch.object(screens_mod, "list_avfoundation_devices", return_value=(devices, None)):
+        with pytest.raises(ScreenProbeError, match="PyObjC is required"):
             probe_screens()
 
 
