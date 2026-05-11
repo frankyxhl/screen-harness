@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import os
 import platform
+import select
 import signal
 import subprocess
 import sys
@@ -122,8 +123,16 @@ def test_startup_under_300ms():
         proc.stdin.write(json.dumps({"cmd": "status"}) + "\n")
         proc.stdin.flush()
 
-        # Read one line from stdout (the status response)
-        proc.stdout.readline()  # may block; we rely on the parent timeout
+        # Read one line from stdout (the status response).
+        # Use select to bound the wait so a stalled stdin reader or wedged
+        # AppKit init fails the test instead of deadlocking the suite.
+        ready, _, _ = select.select([proc.stdout], [], [], 0.5)
+        if not ready:
+            pytest.fail(
+                "HUD subprocess did not emit status line within 500ms — "
+                "stdin reader stalled or AppKit initialization wedged"
+            )
+        proc.stdout.readline()
 
         elapsed = time.monotonic() - t0
     finally:
@@ -173,6 +182,12 @@ def test_parent_crash_child_exits_under_1s():
         stderr=subprocess.PIPE,
     )
     try:
+        ready, _, _ = select.select([intermediate.stdout], [], [], 0.5)
+        if not ready:
+            pytest.fail(
+                "Intermediate process did not emit HUD PID within 500ms — "
+                "subprocess launch stalled"
+            )
         hud_pid_line = intermediate.stdout.readline().strip()
         if not hud_pid_line:
             pytest.skip("intermediate process did not report HUD PID")
