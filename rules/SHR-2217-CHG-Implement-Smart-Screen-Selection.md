@@ -3,13 +3,14 @@
 **Applies to:** SHR project
 **Last updated:** 2026-05-11
 **Last reviewed:** 2026-05-11
-**Status:** Proposed
+**Status:** Completed
 **Date:** 2026-05-11
 **Requested by:** Frank Xu (D1 in SHR-2212)
 **Priority:** High
 **Change Type:** Normal
 **Targets:** src/screen_harness/screens.py (new), src/screen_harness/admin.py, src/screen_harness/helpers.py, src/screen_harness/recorder.py, src/screen_harness/run.py, src/screen_harness/metadata.py, tests/
 **Implements:** SHR-2213 PRP (Approved, 3/3 trinity PASS)
+**Merged:** PR #5 (commit 46f55f76ee) on 2026-05-11; closed Codex bot findings P1 rounds 1–6 + P2 round 7 (7 review iterations).
 
 ---
 
@@ -136,3 +137,5 @@ still readable.
 |------|--------|----|
 | 2026-05-11 | Initial CHG, implements approved PRP-2213 R2 | Claude Code |
 | 2026-05-11 | R1 code review fixes (GLM FAIL 8.35, MiniMax FAIL 8.6): run.py probe-screens missing return → fixed; no-PyObjC display_id=0 collided with camera-rejection guard → use -1 sentinel; document deferral of paired coloured-square invariant test to D2's PR; add happy-path tests for auto-front-app + _get_app_window_center | Claude Code |
+| 2026-05-11 | Codex bot review loop (7 rounds, COR-1612 + COR-1615): P1 round 2 `CGGetActiveDisplayList` out-params signature; P1 round 2 single-device degraded fallback refusal; P1 round 3 helpers fallback to raw AV index 0 removed; P1 round 4 `n_video − n_displays` inference replaced with structural AVFoundation count; P1 round 5 PyObjC-absent path fail-closed; P1 round 5 `AVMediaTypeMuxed` term added to skip-count; P1 round 6 `screen_device` required at recorder layer; P2 round 7 `screen="auto:<App>"` spec wired. Merged PR #5 = 46f55f76ee. | Claude Code |
+| 2026-05-11 | Status → Implemented after PR #5 merge | Claude Code |

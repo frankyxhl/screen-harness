@@ -3,7 +3,7 @@
 **Applies to:** SHR project
 **Last updated:** 2026-05-11
 **Last reviewed:** 2026-05-11
-**Status:** Approved
+**Status:** Implemented
 **Revision:** R2 — revised after R1 three-model parallel review
 **Approved by:** Trinity R2 — glm PASS 9.05, deepseek PASS 9.3, minimax PASS 9.2 (3/3 unanimous, all R1 blockers closed, zero new blockers)
 **Related:** D1 in SHR-2212
