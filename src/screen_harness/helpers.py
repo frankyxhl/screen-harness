@@ -41,6 +41,7 @@ class RuntimeState:
     process: subprocess.Popen | None = None
     log_handle: IO[str] | None = None
     is_recording: bool = False
+    screen_inventory: list | None = None  # cached probe_screens() result
 
 
 _STATE = RuntimeState(root=Path.cwd())
@@ -78,6 +79,7 @@ def start_recording(
     name: str,
     *,
     screen: str | None = None,
+    app: str | None = None,
     mic: str | None = None,
     intro: str | dict | None = None,
     template: str | None = None,
@@ -99,6 +101,34 @@ def start_recording(
         intro=_intro_payload(intro),
     )
     ffmpeg_path = shutil.which("ffmpeg") or "ffmpeg"
+
+    # Resolve the recording screen via smart selection.
+    from .screens import ScreenProbeError, probe_screens, resolve_screen
+    from dataclasses import asdict as _asdict
+
+    if _STATE.screen_inventory is None:
+        # No try/except — probe failures must propagate. Silently falling back
+        # to AVFoundation index 0 is the camera-misuse bug D1 exists to
+        # prevent (Codex bot finding P1 on PR #5, round 2).
+        _STATE.screen_inventory = probe_screens(ffmpeg=ffmpeg_path)
+        print("Available screens:")
+        for s in _STATE.screen_inventory:
+            main_marker = "  MAIN" if s.is_main else ""
+            print(f"  [{s.av_index}] {s.av_name}  display_id={s.display_id} bounds={s.bounds}{main_marker}")
+
+    _screen_spec: str | int | None = screen
+    if _screen_spec is not None:
+        try:
+            _screen_spec = int(_screen_spec)
+        except (ValueError, TypeError):
+            pass
+    # Likewise: resolve_screen failures (e.g. user passed a camera index, or
+    # auto:<App> with no front window AND no main display) must raise.
+    picked = resolve_screen(_screen_spec, app=app, ffmpeg=ffmpeg_path)
+    print(f"Recording from: [{picked.device.av_index}] {picked.device.av_name}  ({picked.reason})")
+    picked_screen_meta = _asdict(picked.device) | {"reason": picked.reason}
+    screen_device_arg = picked.device
+
     metadata = {
         "recording_id": recording_id,
         "name": name,
@@ -115,6 +145,7 @@ def start_recording(
         "capture_cursor": capture_cursor,
         "capture_mouse_clicks": capture_mouse_clicks,
         "region": list(region) if region else None,
+        "picked_screen": picked_screen_meta,
         "error": None,
     }
     _write_json(recording_dir / "metadata.json", metadata)
@@ -122,7 +153,7 @@ def start_recording(
     cmd = build_screen_record_command(
         raw,
         duration=None,
-        screen_index=screen or "0",
+        screen_device=screen_device_arg,
         audio_index=mic,
         capture_cursor=capture_cursor,
         capture_mouse_clicks=capture_mouse_clicks,

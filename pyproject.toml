@@ -27,6 +27,13 @@ classifiers = [
 ]
 dependencies = []
 
+[project.optional-dependencies]
+macos = [
+    "pyobjc-framework-Quartz>=10.0",
+    "pyobjc-framework-Cocoa>=10.0",
+    "pyobjc-framework-AVFoundation>=10.0",
+]
+
 [project.urls]
 Homepage = "https://github.com/frankyxhl/screen-harness"
 Issues = "https://github.com/frankyxhl/screen-harness/issues"
@@ -44,8 +51,17 @@ where = ["src"]
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
+markers = [
+    "macos: macOS-only tests requiring AVFoundation/Quartz (skipped on non-macOS CI)",
+]
 
 [dependency-groups]
 dev = [
     "pytest>=8.0",
+    # macOS extras pinned in dev so the @pytest.mark.macos invariant tests
+    # actually run (and exercise real PyObjC API surfaces) instead of silently
+    # skipping in the project venv.
+    "pyobjc-framework-Quartz>=10.0 ; sys_platform == 'darwin'",
+    "pyobjc-framework-Cocoa>=10.0 ; sys_platform == 'darwin'",
+    "pyobjc-framework-AVFoundation>=10.0 ; sys_platform == 'darwin'",
 ]

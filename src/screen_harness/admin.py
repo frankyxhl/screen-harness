@@ -120,6 +120,7 @@ def build_doctor_summary(
     device_error: str | None = None,
     render_ffmpeg_path: str | None = None,
     render_filters_ok: bool | None = None,
+    picked_screen_default: str | None = None,
 ) -> str:
     lines = []
     if ffmpeg_path:
@@ -134,6 +135,8 @@ def build_doctor_summary(
         lines.append(f"screen capture: ok — {names}")
     else:
         lines.append("screen capture: not detected — grant Screen Recording permission and retry")
+    if picked_screen_default is not None:
+        lines.append(f"picked-screen-default: {picked_screen_default}")
     if devices.audio:
         names = ", ".join(f'{d["index"]}:{d["name"]}' for d in devices.audio)
         lines.append(f"microphone: ok — {names}")
@@ -173,6 +176,15 @@ def doctor() -> str:
             render_filters_ok = False
     else:
         render_filters_ok = False
+
+    picked_screen_default = None
+    try:
+        from .screens import resolve_screen
+        picked = resolve_screen(None)
+        picked_screen_default = f"[{picked.device.av_index}] {picked.device.av_name}"
+    except Exception:
+        pass
+
     return build_doctor_summary(
         ffmpeg_path=ffmpeg_path,
         ffmpeg_version=version,
@@ -180,6 +192,7 @@ def doctor() -> str:
         device_error=device_error,
         render_ffmpeg_path=render_ffmpeg_path,
         render_filters_ok=render_filters_ok,
+        picked_screen_default=picked_screen_default,
     )
 
 

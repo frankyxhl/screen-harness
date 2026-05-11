@@ -22,6 +22,7 @@ HELP = """Screen Harness
 Commands:
   screen-harness doctor
   screen-harness init
+  screen-harness probe-screens [--json]
   screen-harness -c '<python>'
   screen-harness render <recording_id> [--template debug|training]
   screen-harness sop generate <recording_id>
@@ -41,6 +42,9 @@ def main() -> None:
         return
     if args[0] == "doctor":
         raise SystemExit(run_doctor())
+    if args[0] == "probe-screens":
+        _run_probe_screens(args[1:])
+        return
     if args[0] == "init":
         init_project(Path.cwd())
         print("initialized screen-harness workspace")
@@ -110,6 +114,27 @@ def main() -> None:
         print(f"record output: {output}")
         raise SystemExit(result.returncode)
     raise SystemExit(HELP)
+
+
+def _run_probe_screens(args: list[str]) -> None:
+    import json as _json
+    from dataclasses import asdict
+    from .screens import ScreenProbeError, probe_screens
+
+    as_json = "--json" in args
+    try:
+        screens = probe_screens()
+    except ScreenProbeError as exc:
+        raise SystemExit(f"probe-screens failed: {exc}") from exc
+
+    if as_json:
+        print(_json.dumps([asdict(s) for s in screens], ensure_ascii=False, indent=2))
+    else:
+        if not screens:
+            print("No screen devices found — check Screen Recording permission.")
+        for s in screens:
+            main_marker = "  MAIN" if s.is_main else ""
+            print(f"  [{s.av_index}] {s.av_name}  display_id={s.display_id} bounds={s.bounds}{main_marker}")
 
 
 def _recording_dir(recording_id: str) -> Path:

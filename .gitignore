@@ -10,3 +10,5 @@ recordings/
 .screen-harness-spike/
 .coverage
 .claude/
+agent-workspace/d2_spike*.mp4
+agent-workspace/d2_v2_*.mp4
