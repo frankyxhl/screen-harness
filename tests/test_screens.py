@@ -27,10 +27,16 @@ SCHEMA_PATH = Path(__file__).parent / "fixtures" / "picked_screen.schema.json"
 # ---------------------------------------------------------------------------
 
 def _make_quartz_mock(n_displays: int = 1) -> MagicMock:
-    """Return a mock Quartz module with n_displays active displays."""
+    """Return a mock Quartz module with n_displays active displays.
+
+    `CGGetActiveDisplayList` in PyObjC uses C out-parameters, exposed as
+    `CGGetActiveDisplayList(maxDisplays, None, None) -> (err, ids, count)`.
+    The mock returns the same shape — anything else would let bugs like the
+    single-arg call (caught by Codex bot as P1) sneak past unit tests.
+    """
     quartz = MagicMock()
     display_ids = list(range(1001, 1001 + n_displays))
-    quartz.CGGetActiveDisplayList.return_value = display_ids
+    quartz.CGGetActiveDisplayList.return_value = (0, display_ids, n_displays)
     quartz.CGMainDisplayID.return_value = display_ids[0]
     quartz.CGDisplayBounds.side_effect = lambda did: _bounds_for_id(did, display_ids)
     quartz.CGRectGetMinX.side_effect = lambda r: r[0]
@@ -67,7 +73,9 @@ def _probe_from_fixture(locale: str) -> list[ScreenDevice]:
     n_video = len(devices.video)
     n_displays = 1  # each fixture has exactly 1 screen device
     quartz = _make_quartz_mock(n_displays=n_displays)
-    appkit = _make_appkit_mock(quartz.CGGetActiveDisplayList.return_value)
+    # CGGetActiveDisplayList now returns (err, ids, count); pull ids out for the AppKit mock.
+    _err, display_ids, _count = quartz.CGGetActiveDisplayList.return_value
+    appkit = _make_appkit_mock(display_ids)
 
     with (
         patch("screen_harness.screens._import_quartz", return_value=quartz),
@@ -291,3 +299,44 @@ def _two_screen_fixture() -> str:
         "[AVFoundation indev @ 0x100] [2] Capture screen 1\n"
         "[AVFoundation indev @ 0x100] AVFoundation audio devices:\n"
     )
+
+
+# ---------------------------------------------------------------------------
+# Codex bot R1 findings (PR #5)
+# ---------------------------------------------------------------------------
+
+def test_probe_screens_raises_when_single_video_device_without_pyobjc():
+    """Codex P2: degraded single-device fallback must REFUSE, not silently
+    return the camera as a 'screen'."""
+    from screen_harness import screens as screens_mod
+    from screen_harness.admin import AVFoundationDevices
+
+    single_camera = AVFoundationDevices(
+        video=[{"index": "0", "name": "FaceTime HD Camera"}],
+        audio=[],
+    )
+    with patch.object(screens_mod, "_import_quartz", side_effect=ImportError("no pyobjc")), \
+         patch.object(screens_mod, "list_avfoundation_devices", return_value=(single_camera, None)):
+        with pytest.raises(ScreenProbeError, match="Cannot distinguish camera from screen"):
+            probe_screens()
+
+
+def test_probe_screens_calls_CGGetActiveDisplayList_with_out_params():
+    """Codex P1 regression: probe_screens must call the 3-arg form and
+    handle the (err, ids, count) tuple. Single-arg call raises TypeError on
+    real PyObjC."""
+    fixture = (FIXTURES_DIR / "en.txt").read_text()
+    quartz = _make_quartz_mock(n_displays=1)
+    appkit = _make_appkit_mock([1001])
+    from screen_harness.admin import parse_avfoundation_devices
+    with patch("screen_harness.screens._import_quartz", return_value=quartz), \
+         patch("screen_harness.screens._import_appkit", return_value=appkit), \
+         patch(
+             "screen_harness.screens.list_avfoundation_devices",
+             return_value=(parse_avfoundation_devices(fixture), None),
+         ):
+        screens = probe_screens()
+    # Verify it was called with the OUT-PARAMETER signature.
+    quartz.CGGetActiveDisplayList.assert_called_with(16, None, None)
+    assert len(screens) == 1
+    assert screens[0].display_id == 1001

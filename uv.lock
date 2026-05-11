@@ -125,6 +125,8 @@ macos = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "pyobjc-framework-cocoa", marker = "sys_platform == 'darwin'" },
+    { name = "pyobjc-framework-quartz", marker = "sys_platform == 'darwin'" },
     { name = "pytest" },
 ]
 
@@ -136,4 +138,8 @@ requires-dist = [
 provides-extras = ["macos"]
 
 [package.metadata.requires-dev]
-dev = [{ name = "pytest", specifier = ">=8.0" }]
+dev = [
+    { name = "pyobjc-framework-cocoa", marker = "sys_platform == 'darwin'", specifier = ">=10.0" },
+    { name = "pyobjc-framework-quartz", marker = "sys_platform == 'darwin'", specifier = ">=10.0" },
+    { name = "pytest", specifier = ">=8.0" },
+]

@@ -80,16 +80,28 @@ def probe_screens(*, ffmpeg: str = "ffmpeg") -> list[ScreenDevice]:
         quartz = _import_quartz()
         appkit = _import_appkit()
     except ImportError:
-        logger.warning(
-            "PyObjC not installed — screen detection degraded to main-display-only mode. "
-            "Install screen-harness[macos] for full multi-display support."
-        )
         if n_video == 0:
             return []
-        # Best-effort: assume all non-zero-indexed video devices after index 0
-        # are screens.  Use the last video device as main.  display_id=-1 is
-        # the "unknown-but-trust-me" sentinel distinct from kCGNullDirectDisplay
-        # (= 0) used by the camera-rejection gate.
+        if n_video == 1:
+            # Only one video device + no PyObjC = cannot tell if it's the
+            # FaceTime camera or a Capture screen.  Refuse rather than
+            # silently risk recording the camera (the exact bug D1 exists to
+            # prevent).  Codex bot finding P2.
+            raise ScreenProbeError(
+                "PyObjC not installed and only one AVFoundation video device "
+                "available.  Cannot distinguish camera from screen.  "
+                "Install `screen-harness[macos]`, or grant Screen Recording "
+                "permission to FFmpeg so screen capture devices appear."
+            )
+        logger.warning(
+            "PyObjC not installed — screen detection degraded.  Assuming "
+            "the last AVFoundation video device is the main screen.  "
+            "Install screen-harness[macos] for verified multi-display support."
+        )
+        # Best-effort: AVFoundation conventionally enumerates cameras first,
+        # then screens.  Use the last video device as main.  display_id=-1 is
+        # the "unknown-but-trust-me" sentinel distinct from
+        # kCGNullDirectDisplay (= 0) used by the camera-rejection gate.
         main_device = av_devices.video[-1]
         return [
             ScreenDevice(
@@ -102,7 +114,13 @@ def probe_screens(*, ffmpeg: str = "ffmpeg") -> list[ScreenDevice]:
             )
         ]
 
-    display_ids: list[int] = list(quartz.CGGetActiveDisplayList(16))
+    # CGGetActiveDisplayList uses C out-parameters; PyObjC exposes it as
+    # `(maxDisplays, None, None) -> (err, activeDisplays, count)`.  Calling
+    # with a single argument raises TypeError — Codex bot finding P1.
+    err, display_ids_raw, count = quartz.CGGetActiveDisplayList(16, None, None)
+    if err != 0:
+        raise ScreenProbeError(f"CGGetActiveDisplayList returned error {err}")
+    display_ids: list[int] = list(display_ids_raw)[: int(count)]
     n_displays = len(display_ids)
 
     if n_video < n_displays:

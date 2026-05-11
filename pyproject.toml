@@ -57,4 +57,9 @@ markers = [
 [dependency-groups]
 dev = [
     "pytest>=8.0",
+    # macOS extras pinned in dev so the @pytest.mark.macos invariant tests
+    # actually run (and exercise real PyObjC API surfaces) instead of silently
+    # skipping in the project venv.
+    "pyobjc-framework-Quartz>=10.0 ; sys_platform == 'darwin'",
+    "pyobjc-framework-Cocoa>=10.0 ; sys_platform == 'darwin'",
 ]
