@@ -550,14 +550,16 @@ def run_hud_subprocess() -> None:
         elapsed = int(time.monotonic() - state.started_at)
         pill_label.setStringValue_(f"● REC {format_rec_time(elapsed)}")
 
-    def _on_start(cmd: dict):
+    def _on_start_appkit(cmd: dict):
+        # state.handle(cmd) was already called synchronously on the reader
+        # thread before this callback was queued, so state.state == "running"
+        # is visible to any concurrent status query without waiting for AppKit.
         nonlocal panels, pill_label
         _close_all_panels()
 
         screen_data = cmd.get("screen", {})
         region = cmd.get("region", [0, 0, 100, 100])
         started_at = cmd.get("started_at", time.monotonic())
-        state.handle(cmd)
 
         # Reconstruct ScreenDevice from the dict the parent serialised
         from .screens import ScreenDevice as _SD
@@ -607,8 +609,9 @@ def run_hud_subprocess() -> None:
             )
             timer_ref[0] = t
 
-    def _on_stop():
-        state.handle({"cmd": "stop"})
+    def _on_stop_appkit():
+        # state.handle({"cmd": "stop"}) was already called synchronously on
+        # the reader thread before this callback was queued.
         _close_all_panels()
         AppHelper.callAfter(app.terminate_, None)
 
@@ -626,10 +629,18 @@ def run_hud_subprocess() -> None:
                     continue
 
                 if cmd["cmd"] == "start":
-                    AppHelper.callAfter(_on_start, cmd)
+                    # Update state synchronously so a concurrent status query
+                    # sees "running" without waiting for the AppKit callback.
+                    state.handle(cmd)
+                    AppHelper.callAfter(_on_start_appkit, cmd)
                 elif cmd["cmd"] == "stop":
-                    AppHelper.callAfter(_on_stop)
+                    # Same pattern: state update is synchronous; AppKit
+                    # teardown (panel close + terminate) runs on main thread.
+                    state.handle(cmd)
+                    AppHelper.callAfter(_on_stop_appkit)
                 elif cmd["cmd"] == "status":
+                    # state.state is current because start/stop updated it
+                    # synchronously above — no callAfter needed here.
                     status_line = json.dumps({"status": state.state}) + "\n"
                     sys.stdout.write(status_line)
                     sys.stdout.flush()

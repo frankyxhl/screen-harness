@@ -129,3 +129,16 @@ class TestParseStatusCommand:
         state.handle({"cmd": "start", "screen": {}, "region": [0, 0, 100, 100], "started_at": 0.0})
         state.handle({"cmd": "status"})
         assert state.state == "running"
+
+    def test_start_then_status_reports_running(self):
+        """State must reflect 'running' synchronously after handle(start).
+
+        This is the pure-Python regression for the stdin-reader race: if start
+        updates state synchronously (not deferred to AppKit thread), a status
+        query immediately after sees 'running', not 'idle'.
+        """
+        state = HUDState()
+        start_cmd = {"cmd": "start", "screen": {}, "region": [0, 0, 100, 100], "started_at": 0.0}
+        state.handle(start_cmd)
+        # Simulate what the status branch in the reader thread does:
+        assert state.state == "running"
