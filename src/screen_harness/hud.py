@@ -346,6 +346,7 @@ def _import_appkit_deps():
     import AppKit  # noqa: F401
     from AppKit import (
         NSApplication,
+        NSApplicationActivationPolicyAccessory,
         NSBackingStoreBuffered,
         NSBorderlessWindowMask,
         NSColor,
@@ -364,6 +365,7 @@ def _import_appkit_deps():
 
     return {
         "NSApplication": NSApplication,
+        "NSApplicationActivationPolicyAccessory": NSApplicationActivationPolicyAccessory,
         "NSBackingStoreBuffered": NSBackingStoreBuffered,
         "NSBorderlessWindowMask": NSBorderlessWindowMask,
         "NSColor": NSColor,
@@ -527,12 +529,23 @@ def run_hud_subprocess() -> None:
 
     ak = _import_appkit_deps()
     NSApplication = ak["NSApplication"]
+    NSApplicationActivationPolicyAccessory = ak["NSApplicationActivationPolicyAccessory"]
     NSTimer = ak["NSTimer"]
     NSMakeRect = ak["NSMakeRect"]
     AppHelper = ak["AppHelper"]
 
     app = NSApplication.sharedApplication()
-    app.setActivationPolicy_(4)  # NSApplicationActivationPolicyAccessory
+    # NSApplicationActivationPolicyAccessory = 1 (NOT 4 — Codex P1 round 3 on
+    # PR #7).  An invalid value silently leaves the unbundled Python process
+    # at its default "prohibited" policy → NSPanel never renders.  This was
+    # the root cause of SHR-2216 spike's "panel didn't appear" observation.
+    # Import the constant from AppKit so the value comes from the SDK.
+    policy_ok = app.setActivationPolicy_(NSApplicationActivationPolicyAccessory)
+    if not policy_ok:
+        logger.warning(
+            "setActivationPolicy_(Accessory=%d) returned False — HUD may not render",
+            NSApplicationActivationPolicyAccessory,
+        )
 
     state = HUDState()
     panels: list = []

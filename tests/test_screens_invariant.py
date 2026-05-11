@@ -128,6 +128,23 @@ def test_av_to_display_binding_via_coloured_square(tmp_path):
     if len(screens) < 1:
         pytest.skip("no screens returned by probe_screens()")
 
+    # Activate the test process so NSWindow.orderFrontRegardless actually
+    # renders.  Without this, an unbundled Python process defaults to
+    # NSApplicationActivationPolicyProhibited and the WindowServer drops
+    # window orders silently — same root cause as Codex P1 round 3 on the
+    # HUD subprocess.  Use NSApplicationActivationPolicyAccessory (= 1)
+    # imported from AppKit (NOT a hardcoded integer literal — Codex bot
+    # observation).
+    _app = AppKit.NSApplication.sharedApplication()
+    _app.setActivationPolicy_(AppKit.NSApplicationActivationPolicyAccessory)
+    _app.activateIgnoringOtherApps_(True)
+    # Use sRGB colour (Codex P1 round 1 on PR #7: calibratedRGB drifts the
+    # captured pixel enough to fall outside the predicate box on some display
+    # profiles).
+    _color_for = lambda rgb: AppKit.NSColor.colorWithSRGBRed_green_blue_alpha_(
+        rgb[0] / 255.0, rgb[1] / 255.0, rgb[2] / 255.0, 1.0
+    )
+
     # Draw coloured full-screen window on each display, record 0.5s, verify.
     for k, screen in enumerate(screens):
         if k >= len(_SCREEN_COLOURS):
@@ -153,9 +170,7 @@ def test_av_to_display_binding_via_coloured_square(tmp_path):
             AppKit.NSBackingStoreBuffered,
             False,
         )
-        win.setBackgroundColor_(
-            AppKit.NSColor.colorWithCalibratedRed_green_blue_alpha_(r_f, g_f, b_f, 1.0)
-        )
+        win.setBackgroundColor_(_color_for(expected_rgb))
         win.setLevel_(AppKit.NSStatusWindowLevel)
         win.setOpaque_(True)
         win.orderFrontRegardless()
