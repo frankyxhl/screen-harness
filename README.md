@@ -195,15 +195,75 @@ GitHub Actions runs on pull requests and pushes to `main`:
 
 A separate **`release.yml`** workflow fires on `v*` tag pushes (see [RELEASING.md](RELEASING.md)) — runs tests, builds wheel+sdist, creates a GitHub Release, and publishes to PyPI via Trusted Publisher (OIDC; no API token).
 
-## Use as an Agent Skill or Coding-Agent Instructions
+## Use With Your AI Coding Assistant
 
-`AGENTS.md` at the repo root is the canonical source of always-on instructions
-for coding agents that support the LF Agentic AI Foundation AGENTS.md spec
-(Feb 2026). Editors should modify `AGENTS.md` (or the tail files under
-`scripts/agent-docs-tails/`) and then regenerate the tool-specific files:
+This repo ships **agent instruction files** so coding assistants know how to drive `screen-harness` end-to-end without you copy-pasting docs into the chat. Pick the path for your tool.
+
+### Path A — open the repo with your AI
+
+Codex CLI, Cursor, Windsurf, Amp, Devin, GitHub Copilot Chat, and Claude Code all read instruction files from a repo automatically (subject to the per-tool caveats below). After cloning:
 
 ```bash
-python scripts/sync_agent_docs.py
+git clone https://github.com/frankyxhl/screen-harness
+cd screen-harness
+uv sync --extra macos
+uv run screen-harness init
+uv run screen-harness doctor
+```
+
+Then start a session in your AI tool from the `screen-harness` directory. You can say things like:
+
+> "Use screen-harness to record me opening Safari and walking through the homepage of github.com, then render it as a training video."
+
+> "Probe the screens and record a 30-second clip of the display where Slack is running. Crop to Slack's window."
+
+> "Pick up where I left off in `recordings/safari_github_repo_demo_*` — re-render the SOP with my updated captions."
+
+The AI will read `AGENTS.md` (canonical) plus the tool-specific stub (`CLAUDE.md`, `.github/copilot-instructions.md`, `SKILL.md`) and act on the helper API.
+
+### Path B — install as a Claude Skill (Anthropic Skills bundle)
+
+`SKILL.md` at the repo root is the Anthropic Skill bundle entry point with a tightened `name` + `description` frontmatter. To make Claude Code or Claude.ai discover it on-demand:
+
+**Claude Code (CLI):**
+```bash
+# clone into a directory Claude Code scans for skills
+git clone https://github.com/frankyxhl/screen-harness ~/.claude/skills/screen-harness
+```
+Restart Claude Code; the skill becomes invocable by name.
+
+**Claude.ai web:**
+Open https://claude.ai → Settings → **Skills** → **Upload skill** → point at the cloned `screen-harness` directory (or upload the bundle zip). Claude will pick it up across all your conversations.
+
+Once installed, just say:
+> "Use the screen-harness skill to record a 60-second screencast of my IDE while I refactor `foo.py`."
+
+### Path C — use as a Python helper directly
+
+`screen-harness` is also a CLI + Python helper. Install from PyPI:
+
+```bash
+uv add screen-harness                # add to a uv project
+# or
+pipx install screen-harness          # standalone CLI
+# or
+pip install 'screen-harness[macos]'  # with the macOS PyObjC extras
+```
+
+Then drive it from Python:
+```python
+from screen_harness.helpers import start_recording, stop_recording, wait
+start_recording("demo", region=(200, 200, 1000, 700))
+wait(10)
+stop_recording()
+```
+or one-shot via the CLI:
+```bash
+uv run screen-harness -c '
+start_recording("demo", region=(200, 200, 1000, 700))
+wait(10)
+stop_recording()
+'
 ```
 
 ### Which file each tool reads
@@ -219,8 +279,15 @@ python scripts/sync_agent_docs.py
 | Claude Code | `CLAUDE.md` | current (AGENTS.md support pending) |
 | Anthropic Skills (on-demand) | `SKILL.md` | current |
 
-**Copilot opt-in caveat:** `.github/copilot-instructions.md` is read by
-GitHub Copilot Chat *only* when the
-`github.copilot.chat.codeGeneration.useInstructionFiles` setting is enabled.
-This is per-user and off by default. Enable it in VS Code settings or at
-github.com.
+**Copilot opt-in caveat:** `.github/copilot-instructions.md` is read by GitHub Copilot Chat *only* when the `github.copilot.chat.codeGeneration.useInstructionFiles` setting is enabled. This is per-user and off by default — enable it in VS Code settings or at github.com.
+
+### Maintaining the instruction files
+
+`AGENTS.md` is the **canonical source**. `CLAUDE.md`, `.github/copilot-instructions.md`, and `SKILL.md` are *generated* from `AGENTS.md` + tail files under `scripts/agent-docs-tails/`. Editing those generated files directly will be detected by CI (the `agent-docs` job) and fail the build. To make an authoritative change:
+
+```bash
+# edit AGENTS.md or scripts/agent-docs-tails/<tool>.md
+python scripts/sync_agent_docs.py
+git add AGENTS.md scripts/agent-docs-tails/ CLAUDE.md .github/copilot-instructions.md SKILL.md
+git commit
+```
