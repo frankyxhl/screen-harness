@@ -240,14 +240,14 @@ Once installed, just say:
 
 ### Path C — use as a Python helper directly
 
-`screen-harness` is also a CLI + Python helper. Install from PyPI:
+`screen-harness` is also a CLI + Python helper. Install from PyPI — **always include the `[macos]` extra**; the base package has no runtime deps and `probe_screens` will raise `ScreenProbeError` without PyObjC (Quartz / Cocoa / AVFoundation):
 
 ```bash
-uv add screen-harness                # add to a uv project
+uv add 'screen-harness[macos]'        # add to a uv project
 # or
-pipx install screen-harness          # standalone CLI
+pipx install 'screen-harness[macos]'  # standalone CLI
 # or
-pip install 'screen-harness[macos]'  # with the macOS PyObjC extras
+pip install 'screen-harness[macos]'   # plain pip
 ```
 
 Then drive it from Python:
