@@ -128,39 +128,90 @@ def format_rec_time(elapsed_seconds: int) -> str:
     return f"{h:02d}:{m:02d}:{s:02d}"
 
 
+def pill_placement(
+    anchor: str,
+    crop_rect: tuple[float, float, float, float],
+    *,
+    pill_w: float = 160.0,
+    pill_h: float = 36.0,
+    margin: float = 12.0,
+) -> tuple[float, float]:
+    """Return ``(px, py)`` AppKit-coords for the pill given an *anchor*.
+
+    Anchors fall into two families:
+
+    * **Side placements** (pill sits to the left/right of the crop):
+      ``bottom-right``, ``top-right``, ``bottom-left``, ``top-left``.
+    * **Stacked placements** (pill sits above/below the crop) — used when
+      the crop occupies the full width or full height and no side
+      placement fits (Codex bot finding P2):
+      ``above-right``, ``above-left``, ``below-right``, ``below-left``.
+
+    Plus ``edge:top|bottom|left|right`` as a last-resort centered placement
+    on the named screen edge — only reached when no other position fits.
+    """
+    cx, cy, cw, ch = crop_rect
+    table = {
+        "bottom-right": (cx + cw + margin, cy - pill_h - margin),
+        "top-right":    (cx + cw + margin, cy + ch + margin),
+        "bottom-left":  (cx - pill_w - margin, cy - pill_h - margin),
+        "top-left":     (cx - pill_w - margin, cy + ch + margin),
+        "above-right":  (cx + cw - pill_w,    cy + ch + margin),
+        "above-left":   (cx,                  cy + ch + margin),
+        "below-right":  (cx + cw - pill_w,    cy - pill_h - margin),
+        "below-left":   (cx,                  cy - pill_h - margin),
+    }
+    if anchor in table:
+        return table[anchor]
+    raise ValueError(f"Unknown anchor {anchor!r} (edge: anchors are placed by caller)")
+
+
 def pick_rec_pill_anchor(
     crop_rect: tuple[int | float, int | float, int | float, int | float],
     screen_rect: tuple[int | float, int | float, int | float, int | float],
+    *,
+    pill_w: float = 160.0,
+    pill_h: float = 36.0,
+    margin: float = 12.0,
 ) -> str:
     """Choose where to position the REC pill outside *crop_rect*.
 
-    Priority order: bottom-right > top-right > bottom-left > top-left.
-    Falls back to ``edge:<side>`` when no corner is free (crop covers
-    the full screen).
+    Eight candidate placements are tried in priority order; the first
+    placement whose pill rect — including a *margin* gap from the crop
+    edge — fits **entirely** inside *screen_rect* wins.  This addresses
+    Codex bot finding P2: a crop of (0,0,1900,1000) on a 1920×1080
+    screen leaves only 20pt to the right, which cannot fit a 160×36
+    pill at the bottom-right corner anchor.
 
-    A corner is "free" when the crop rect does not overlap it.  For
-    bottom-right: the corner is free when the crop does **not** contain
-    the bottom-right corner pixel of the screen.
+    Priority:
+      1. Side placements (pill laterally adjacent to crop):
+         ``bottom-right`` > ``top-right`` > ``bottom-left`` > ``top-left``
+      2. Stacked placements (pill above/below crop):
+         ``above-right`` > ``below-right`` > ``above-left`` > ``below-left``
+      3. ``edge:<side>`` fallback for the no-fit case (crop covers the
+         full screen).
 
     *crop_rect* and *screen_rect* are both ``(x, y, w, h)`` in the same
-    coordinate system (AppKit points or pixels — only the positions matter).
+    coordinate system (AppKit points).
     """
     cx, cy, cw, ch = crop_rect
     sx, sy, sw, sh = screen_rect
 
-    # Corner positions of the screen (x, y of the corner pixel).
-    # y increases downward (screen pixel space), so:
-    #   top    → sy,       bottom → sy + sh
-    corners_free = {
-        "bottom-right": not _rect_contains_point(crop_rect, sx + sw, sy + sh),
-        "top-right":    not _rect_contains_point(crop_rect, sx + sw, sy),
-        "bottom-left":  not _rect_contains_point(crop_rect, sx,      sy + sh),
-        "top-left":     not _rect_contains_point(crop_rect, sx,      sy),
-    }
+    def _fits(px: float, py: float) -> bool:
+        return (
+            px >= sx
+            and py >= sy
+            and px + pill_w <= sx + sw
+            and py + pill_h <= sy + sh
+        )
 
-    priority = ["bottom-right", "top-right", "bottom-left", "top-left"]
+    priority = [
+        "bottom-right", "top-right", "bottom-left", "top-left",
+        "above-right", "below-right", "above-left", "below-left",
+    ]
     for anchor in priority:
-        if corners_free[anchor]:
+        px, py = pill_placement(anchor, crop_rect, pill_w=pill_w, pill_h=pill_h, margin=margin)
+        if _fits(px, py):
             return anchor
 
     # All corners blocked — fall back to edge closest to crop centre
@@ -392,27 +443,37 @@ def _make_rec_pill_panel(
     NSColor = ak["NSColor"]
     NSFont = ak["NSFont"]
 
-    anchor = pick_rec_pill_anchor(crop_appkit, screen_appkit)
+    anchor = pick_rec_pill_anchor(
+        crop_appkit, screen_appkit,
+        pill_w=_PILL_WIDTH, pill_h=_PILL_HEIGHT, margin=_PILL_MARGIN,
+    )
 
-    cx, cy, cw, ch = crop_appkit
     sx, sy, sw, sh = screen_appkit
 
-    if anchor == "bottom-right":
-        px = cx + cw + _PILL_MARGIN
-        py = cy - _PILL_HEIGHT - _PILL_MARGIN
-    elif anchor == "top-right":
-        px = cx + cw + _PILL_MARGIN
-        py = cy + ch + _PILL_MARGIN
-    elif anchor == "bottom-left":
-        px = cx - _PILL_WIDTH - _PILL_MARGIN
-        py = cy - _PILL_HEIGHT - _PILL_MARGIN
-    elif anchor == "top-left":
-        px = cx - _PILL_WIDTH - _PILL_MARGIN
-        py = cy + ch + _PILL_MARGIN
+    if anchor.startswith("edge:"):
+        # No 4-corner / 4-stack placement fits — crop covers the whole
+        # screen.  Place the pill at the screen edge named by the
+        # fallback; the pill will visually overlap the crop, but recording
+        # is already full-screen so the user is informed via the warning
+        # in helpers.start_recording.
+        side = anchor.split(":", 1)[1]
+        if side == "right":
+            px = sx + sw - _PILL_WIDTH - _PILL_MARGIN
+            py = sy + (sh - _PILL_HEIGHT) / 2
+        elif side == "left":
+            px = sx + _PILL_MARGIN
+            py = sy + (sh - _PILL_HEIGHT) / 2
+        elif side == "top":
+            px = sx + (sw - _PILL_WIDTH) / 2
+            py = sy + sh - _PILL_HEIGHT - _PILL_MARGIN
+        else:  # bottom
+            px = sx + (sw - _PILL_WIDTH) / 2
+            py = sy + _PILL_MARGIN
     else:
-        # edge: fallback — top-right of screen
-        px = sx + sw - _PILL_WIDTH - _PILL_MARGIN
-        py = sy + sh - _PILL_HEIGHT - _PILL_MARGIN
+        px, py = pill_placement(
+            anchor, crop_appkit,
+            pill_w=_PILL_WIDTH, pill_h=_PILL_HEIGHT, margin=_PILL_MARGIN,
+        )
 
     frame = NSMakeRect(px, py, _PILL_WIDTH, _PILL_HEIGHT)
     panel = _make_panel(frame, ak=ak, color_rgb=_HUD_RED_RGB)
