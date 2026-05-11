@@ -27,6 +27,7 @@
 | 2215 | PRP | Multi Agent Instructions Packaging |
 | 2216 | REF | D2 sharingType Spike Findings |
 | 2217 | CHG | Implement Smart Screen Selection |
+| 2218 | CHG | Implement Recording HUD |
 
 ---
 
