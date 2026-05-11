@@ -52,3 +52,183 @@ def test_probe_screens_no_cameras_returned():
                 f"Device [{s.av_index}] {s.av_name!r} returned display_id=0 "
                 "— possible camera mis-classification"
             )
+
+
+# ---------------------------------------------------------------------------
+# CHG-2218 §5 / CHG-2217 §6 — paired coloured-square AV↔CGDirectDisplayID
+# binding invariant test
+# ---------------------------------------------------------------------------
+
+def _ffmpeg_has_avfoundation() -> bool:
+    import subprocess
+    try:
+        r = subprocess.run(
+            ["ffmpeg", "-hide_banner", "-devices"],
+            capture_output=True, text=True, timeout=10,
+        )
+        return "avfoundation" in r.stdout + r.stderr
+    except Exception:
+        return False
+
+
+def _windowserver_present() -> bool:
+    """Return True when a WindowServer session is available."""
+    import subprocess
+    try:
+        r = subprocess.run(
+            ["pgrep", "-x", "WindowServer"],
+            capture_output=True, timeout=5,
+        )
+        return r.returncode == 0
+    except Exception:
+        return False
+
+
+def _skip_coloured_square_if_needed():
+    if not _on_macos:
+        pytest.skip("macOS only")
+    if not _pyobjc_present():
+        pytest.skip("PyObjC not installed")
+    if not _ffmpeg_has_avfoundation():
+        pytest.skip("FFmpeg lacks avfoundation")
+    if not _windowserver_present():
+        pytest.skip("headless host — no WindowServer")
+
+
+_SCREEN_COLOURS = [
+    (255, 0, 0),    # display 0 → pure red
+    (0, 255, 0),    # display 1 → pure green
+    (0, 0, 255),    # display 2 → pure blue
+]
+
+
+@pytest.mark.macos
+def test_av_to_display_binding_via_coloured_square(tmp_path):
+    """AV↔CGDirectDisplayID binding: draw a colour on each screen, capture,
+    verify mean centre-block RGB matches within Euclidean distance ≤ 10.
+
+    This verifies probe_screens() correctly binds av_index (FFmpeg enumeration)
+    to display_id (Quartz enumeration). The two enumeration orders are
+    independent — a bug in the binding would produce a wrong colour in the
+    captured frame.
+    """
+    _skip_coloured_square_if_needed()
+
+    import math
+    import subprocess
+    import tempfile
+
+    import AppKit
+    import Quartz
+
+    from screen_harness.screens import probe_screens
+    from screen_harness.recorder import build_screen_record_command
+
+    screens = probe_screens()
+    if len(screens) < 1:
+        pytest.skip("no screens returned by probe_screens()")
+
+    # Draw coloured full-screen window on each display, record 0.5s, verify.
+    for k, screen in enumerate(screens):
+        if k >= len(_SCREEN_COLOURS):
+            break
+        expected_rgb = _SCREEN_COLOURS[k]
+
+        # Find the NSScreen whose NSScreenNumber matches screen.display_id
+        ns_target = None
+        for ns in AppKit.NSScreen.screens():
+            ns_num = ns.deviceDescription().get("NSScreenNumber")
+            if ns_num is not None and int(ns_num) == screen.display_id:
+                ns_target = ns
+                break
+        if ns_target is None:
+            pytest.skip(f"NSScreen for display_id={screen.display_id} not found")
+
+        # Draw full-screen coloured borderless NSWindow on the target display
+        r_f, g_f, b_f = [c / 255.0 for c in expected_rgb]
+        ns_frame = ns_target.frame()
+        win = AppKit.NSWindow.alloc().initWithContentRect_styleMask_backing_defer_(
+            ns_frame,
+            AppKit.NSBorderlessWindowMask,
+            AppKit.NSBackingStoreBuffered,
+            False,
+        )
+        win.setBackgroundColor_(
+            AppKit.NSColor.colorWithCalibratedRed_green_blue_alpha_(r_f, g_f, b_f, 1.0)
+        )
+        win.setLevel_(AppKit.NSStatusWindowLevel)
+        win.setOpaque_(True)
+        win.orderFrontRegardless()
+
+        # Give the window time to composite
+        import time
+        time.sleep(0.1)
+
+        # Record 0.5 s of the screen
+        out = tmp_path / f"screen_{k}.mp4"
+        cmd = build_screen_record_command(
+            out,
+            duration=0.5,
+            screen_device=screen,
+        )
+        result = subprocess.run(cmd, capture_output=True, timeout=15)
+        win.close()
+
+        assert result.returncode == 0, (
+            f"FFmpeg capture failed for screen {k}: {result.stderr.decode()[-400:]}"
+        )
+
+        # Sample 8×8 centre block of the middle frame
+        # Extract middle frame as PNG
+        frame_png = tmp_path / f"frame_{k}.png"
+        # Get video duration/fps to find middle frame
+        probe_cmd = [
+            "ffprobe", "-v", "error",
+            "-select_streams", "v:0",
+            "-show_entries", "stream=width,height,nb_frames",
+            "-of", "json",
+            str(out),
+        ]
+        probe_r = subprocess.run(probe_cmd, capture_output=True, text=True, timeout=10)
+        import json
+        try:
+            info = json.loads(probe_r.stdout)["streams"][0]
+            vid_w = int(info["width"])
+            vid_h = int(info["height"])
+            nb_frames = int(info.get("nb_frames") or 1)
+        except (KeyError, IndexError, json.JSONDecodeError):
+            pytest.skip(f"could not probe video info for screen {k}")
+
+        mid_frame = max(0, nb_frames // 2 - 1)
+        extract_cmd = [
+            "ffmpeg", "-y",
+            "-i", str(out),
+            "-vf", f"select=eq(n\\,{mid_frame})",
+            "-vframes", "1",
+            str(frame_png),
+        ]
+        subprocess.run(extract_cmd, capture_output=True, timeout=10)
+        if not frame_png.exists():
+            pytest.skip(f"could not extract frame from screen {k} recording")
+
+        # Read 8×8 centre block using PIL/Pillow
+        try:
+            from PIL import Image
+        except ImportError:
+            pytest.skip("Pillow not installed; cannot sample frame pixels")
+
+        img = Image.open(frame_png).convert("RGB")
+        cx, cy = vid_w // 2, vid_h // 2
+        block = img.crop((cx - 4, cy - 4, cx + 4, cy + 4))
+        pixels = list(block.getdata())
+        mean_r = sum(p[0] for p in pixels) / len(pixels)
+        mean_g = sum(p[1] for p in pixels) / len(pixels)
+        mean_b = sum(p[2] for p in pixels) / len(pixels)
+
+        er, eg, eb = expected_rgb
+        dist = math.sqrt((mean_r - er) ** 2 + (mean_g - eg) ** 2 + (mean_b - eb) ** 2)
+        assert dist <= 10, (
+            f"Screen {k} (display_id={screen.display_id}, av_index={screen.av_index}): "
+            f"expected RGB≈{expected_rgb}, got mean ({mean_r:.0f},{mean_g:.0f},{mean_b:.0f}), "
+            f"Euclidean distance={dist:.1f} > 10"
+        )

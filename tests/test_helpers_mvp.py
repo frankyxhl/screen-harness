@@ -70,7 +70,7 @@ def test_start_recording_threads_region_into_metadata_and_recorder(monkeypatch, 
 
     with patch("screen_harness.helpers.subprocess.Popen", side_effect=fake_popen), \
          patch("screen_harness.helpers._safe_ffmpeg_version", return_value="ffmpeg version"):
-        recording = helpers.start_recording("region_demo", region=(0, 25, 1920, 1055))
+        recording = helpers.start_recording("region_demo", region=(0, 25, 1920, 1055), hud=False)
 
     metadata = json.loads((recording / "metadata.json").read_text())
     assert metadata["region"] == [0, 25, 1920, 1055]

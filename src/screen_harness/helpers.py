@@ -42,6 +42,7 @@ class RuntimeState:
     log_handle: IO[str] | None = None
     is_recording: bool = False
     screen_inventory: list | None = None  # cached probe_screens() result
+    hud_process: subprocess.Popen | None = None  # optional HUD subprocess
 
 
 _STATE = RuntimeState(root=Path.cwd())
@@ -86,6 +87,7 @@ def start_recording(
     capture_cursor: bool = True,
     capture_mouse_clicks: bool = True,
     region: tuple[int, int, int, int] | None = None,
+    hud: bool = True,
 ) -> Path:
     init_project(_STATE.root)
     template_name = get_template(template).name
@@ -129,6 +131,32 @@ def start_recording(
     picked_screen_meta = _asdict(picked.device) | {"reason": picked.reason}
     screen_device_arg = picked.device
 
+    # Validate region bounds before doing anything else.
+    if region is not None:
+        from .hud import validate_region_for_screen
+        validate_region_for_screen(region, picked.device)
+
+    # Determine if the HUD can and should be shown.
+    # The HUD requires space outside the crop rect; check that the region
+    # is strictly smaller than the screen in at least width OR height.
+    hud_eligible = False
+    if hud and region is not None:
+        _bx, _by, bw, bh = picked.device.bounds
+        rx, ry, rw, rh = region
+        _has_outside_space = (rw < bw) or (rh < bh)
+        if not _has_outside_space:
+            print(
+                "Full-screen recording — HUD disabled; pass region= to enable",
+                flush=True,
+            )
+        else:
+            hud_eligible = True
+    elif hud and region is None:
+        print(
+            "Full-screen recording — HUD disabled; pass region= to enable",
+            flush=True,
+        )
+
     metadata = {
         "recording_id": recording_id,
         "name": name,
@@ -146,6 +174,7 @@ def start_recording(
         "capture_mouse_clicks": capture_mouse_clicks,
         "region": list(region) if region else None,
         "picked_screen": picked_screen_meta,
+        "hud_active": False,  # updated below if HUD starts
         "error": None,
     }
     _write_json(recording_dir / "metadata.json", metadata)
@@ -159,6 +188,10 @@ def start_recording(
         capture_mouse_clicks=capture_mouse_clicks,
         region=region,
     )
+    # FFmpeg stderr is captured separately so we can watch for the
+    # "AVFoundation capture started" line to get an accurate started_at.
+    ffmpeg_stderr_pipe = subprocess.PIPE
+
     # `start_new_session=True` puts FFmpeg (and any AVFoundation helper
     # subprocesses it forks) into a fresh process group so we can SIGTERM the
     # whole tree on stop/abort instead of leaving zombies.
@@ -166,15 +199,37 @@ def start_recording(
         cmd,
         stdin=subprocess.PIPE,
         stdout=log_handle,
-        stderr=subprocess.STDOUT,
+        stderr=ffmpeg_stderr_pipe,
         start_new_session=True,
     )
+
+    # Wait for FFmpeg to confirm capture has started (up to 5 s).
+    started_at = _wait_for_ffmpeg_start(process, log_handle, timeout=5.0)
+
+    # Launch HUD subprocess (best-effort; recording must not fail if HUD fails).
+    hud_proc: subprocess.Popen | None = None
+    if hud_eligible:
+        hud_proc = _launch_hud_subprocess(
+            screen_device=picked.device,
+            region=region,
+            started_at=started_at,
+        )
+        if hud_proc is not None:
+            metadata["hud_active"] = True
+            _write_json(recording_dir / "metadata.json", metadata)
+
     _STATE.recording_dir = recording_dir
     _STATE.timeline = timeline
-    _STATE.started_at = time.monotonic()
+    _STATE.started_at = started_at
     _STATE.process = process
     _STATE.log_handle = log_handle
     _STATE.is_recording = True
+    _STATE.hud_process = hud_proc
+
+    # Ensure HUD is torn down on KeyboardInterrupt / process exit.
+    import atexit as _atexit
+    _atexit.register(_atexit_hud_cleanup)
+
     return recording_dir
 
 
@@ -189,13 +244,169 @@ def _signal_process_group(process: subprocess.Popen, sig: int) -> None:
             pass
 
 
+# FFmpeg stderr lines that confirm avfoundation capture has begun.
+_FFMPEG_STARTED_PATTERNS = (
+    b"AVFoundation capture started",
+    b"avfoundation",
+    b"frame=",
+    b"fps=",
+    b"Input #",
+)
+
+
+def _wait_for_ffmpeg_start(
+    process: subprocess.Popen,
+    log_handle: "IO[str]",
+    *,
+    timeout: float = 5.0,
+) -> float:
+    """Read FFmpeg stderr until a capture-started line appears (or timeout).
+
+    Returns the monotonic time when capture was confirmed (or Popen time
+    if not confirmed within *timeout* seconds — logs a warning in that case).
+
+    Stderr bytes are also forwarded to *log_handle* so the ffmpeg.log file
+    remains complete.
+    """
+    import select
+    import threading
+
+    deadline = time.monotonic() + timeout
+    confirmed_at: list[float] = []
+
+    if getattr(process, "stderr", None) is None:
+        return time.monotonic()
+
+    # Read FFmpeg stderr in a background thread so we don't block forever
+    # if FFmpeg never prints the expected line.
+    def _reader():
+        try:
+            for raw_line in process.stderr:
+                if log_handle:
+                    try:
+                        log_handle.write(raw_line.decode("utf-8", errors="replace"))
+                        log_handle.flush()
+                    except (OSError, ValueError):
+                        pass
+                if not confirmed_at:
+                    for pat in _FFMPEG_STARTED_PATTERNS:
+                        if pat in raw_line:
+                            confirmed_at.append(time.monotonic())
+                            break
+        except Exception:
+            pass
+
+    t = threading.Thread(target=_reader, daemon=True)
+    t.start()
+
+    # Wait until confirmed or timeout
+    while time.monotonic() < deadline:
+        if confirmed_at:
+            return confirmed_at[0]
+        time.sleep(0.05)
+
+    if not confirmed_at:
+        logger.warning(
+            "FFmpeg capture start not confirmed within %.1fs; "
+            "using Popen time as started_at (HUD timer may lead recording by up to %.0fms)",
+            timeout,
+            timeout * 1000,
+        )
+        return time.monotonic()
+
+    return confirmed_at[0]
+
+
+def _launch_hud_subprocess(
+    *,
+    screen_device: "object",
+    region: tuple[int, int, int, int],
+    started_at: float,
+) -> "subprocess.Popen | None":
+    """Launch ``python -m screen_harness.hud`` and send the start command.
+
+    Returns the Popen object on success, or None if the subprocess cannot
+    be started (recording must not fail because the HUD failed).
+    """
+    import sys as _sys
+    from dataclasses import asdict as _asdict
+
+    try:
+        hud_proc = subprocess.Popen(
+            [_sys.executable, "-m", "screen_harness.hud"],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+    except OSError as exc:
+        logger.warning("HUD subprocess could not be launched (%s); recording continues without HUD.", exc)
+        return None
+
+    try:
+        screen_dict = _asdict(screen_device)
+        # bounds is a tuple — JSON needs a list
+        screen_dict["bounds"] = list(screen_dict["bounds"])
+        start_cmd = json.dumps({
+            "cmd": "start",
+            "screen": screen_dict,
+            "region": list(region),
+            "started_at": started_at,
+        }) + "\n"
+        if hud_proc.stdin is None:
+            raise OSError("HUD subprocess has no stdin pipe")
+        hud_proc.stdin.write(start_cmd)
+        hud_proc.stdin.flush()
+    except (OSError, BrokenPipeError) as exc:
+        logger.warning("HUD start command failed (%s); recording continues without HUD.", exc)
+        try:
+            hud_proc.kill()
+            hud_proc.wait(timeout=1)
+        except Exception:
+            pass
+        return None
+
+    return hud_proc
+
+
+def _stop_hud_subprocess(hud_proc: "subprocess.Popen | None") -> None:
+    """Close HUD subprocess stdin → child sees EOF → terminates within 200 ms."""
+    if hud_proc is None:
+        return
+    try:
+        if hud_proc.stdin and not hud_proc.stdin.closed:
+            hud_proc.stdin.close()
+    except (OSError, BrokenPipeError):
+        pass
+    try:
+        hud_proc.wait(timeout=0.5)
+    except subprocess.TimeoutExpired:
+        try:
+            hud_proc.kill()
+            hud_proc.wait(timeout=0.5)
+        except Exception:
+            pass
+    except Exception:
+        pass
+
+
+def _atexit_hud_cleanup() -> None:
+    """atexit handler — tears down HUD if the process exits without stop_recording()."""
+    _stop_hud_subprocess(_STATE.hud_process)
+    _STATE.hud_process = None
+
+
 def stop_recording() -> Path:
     if not _STATE.is_recording or not _STATE.process or not _STATE.recording_dir:
         raise RuntimeError("no active recording")
     process = _STATE.process
     recording_dir = _STATE.recording_dir
     log_handle = _STATE.log_handle
+    hud_proc = _STATE.hud_process
     try:
+        # Tear down HUD first (closes stdin → child sees EOF → exits within 200 ms).
+        _stop_hud_subprocess(hud_proc)
+
         # Politely ask FFmpeg to stop. Any I/O error here just falls through
         # to the wait/terminate/kill cascade below — we never want a stdin
         # hiccup to leave the process or log handle leaked.
@@ -236,6 +447,7 @@ def stop_recording() -> Path:
         _STATE.is_recording = False
         _STATE.process = None
         _STATE.log_handle = None
+        _STATE.hud_process = None
 
 
 def abort_active_recording() -> None:
