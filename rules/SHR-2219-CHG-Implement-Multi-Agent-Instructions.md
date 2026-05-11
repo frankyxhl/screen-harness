@@ -56,11 +56,13 @@ Implement PRP-2215 R2.1 verbatim. Deliverables:
    **Source of the YAML frontmatter** (DeepSeek R1 B2 / MiniMax R1 A3):
    the `name` and `description` (and only those two keys — any others
    raise during emit) live as **YAML frontmatter inside
-   `scripts/agent-docs-tails/skill.md`**. The render function lifts that
-   frontmatter, validates it (length + key whitelist), and re-emits it
-   sorted at the top of `SKILL.md`. The body of `scripts/agent-docs-tails/skill.md`
-   below its `---` separator becomes the Skill-specific stanza appended
-   after the AGENTS.md pointer.
+   `scripts/agent-docs-tails/skill.md`**. **That tail file is hand-authored
+   and never generated** (MiniMax R2 A1) — it is the canonical source for
+   the two keys. The render function lifts that frontmatter, validates
+   it (length + key whitelist), and re-emits it sorted at the top of
+   `SKILL.md`. The body of `scripts/agent-docs-tails/skill.md` below its
+   `---` separator becomes the Skill-specific stanza appended after the
+   AGENTS.md pointer.
 
 5. **DROP `agent.md`** (lowercase) — no consumer. Already not in repo (no
    delete needed); just document the decision.
@@ -88,6 +90,26 @@ Implement PRP-2215 R2.1 verbatim. Deliverables:
      `description` is single-line in the output — if the source text
      contains newlines, the emitter raises (the schema doesn't support
      multi-line descriptions; reformat the source).
+   - **Emitter algorithm** (MiniMax R2 B4, pinned to avoid
+     insertion-order accidents — Python 3.7+ dicts preserve insertion
+     order, NOT alphabetical):
+     ```python
+     def emit_frontmatter(d: dict) -> str:
+         allowed = {"name", "description"}
+         extras = set(d) - allowed
+         if extras:
+             raise ValueError(f"Unknown frontmatter keys: {sorted(extras)}")
+         lines = ["---"]
+         for key in sorted(d.keys()):              # ← explicit alphabetical sort
+             value = d[key]
+             if "\n" in str(value):
+                 raise ValueError(f"{key}: multi-line value not supported")
+             if key == "description" and len(value) > 1024:
+                 raise ValueError(f"description exceeds 1024 chars: {len(value)}")
+             lines.append(f"{key}: {value}")
+         lines.append("---")
+         return "\n".join(lines) + "\n"
+     ```
    - SKILL.md `description` length asserted ≤ 1024 chars before emit
      (raise if violated).
    - **Banner byte template** (MiniMax R1 A2, pinned verbatim):
@@ -261,3 +283,4 @@ jobs.
 |------|--------|----|
 | 2026-05-12 | Initial CHG, implements approved PRP-2215 R2.1 | Claude Code |
 | 2026-05-12 | R2 — Address Trinity R1 (GLM PASS 9.15, DeepSeek FAIL 7.7, MiniMax FAIL 8.4): hand-rolled 2-key YAML emitter (no PyYAML dep) addressing DeepSeek B1 + MiniMax B3; declare SKILL.md frontmatter source = scripts/agent-docs-tails/skill.md (DeepSeek B2 + MiniMax A3); pin 7 fixture file paths (MiniMax B2); banner byte template + AGENTS.md heading outline pinned; atomicity justification + rollback commands; GEMINI.md TODO marker for D3.1 integration point; source-edit drift test (GLM A2). | Claude Code |
+| 2026-05-12 | R3 — Address MiniMax R2 (FAIL 7.3): pin emitter algorithm with explicit `sorted(d.keys())` step (B4); declare `scripts/agent-docs-tails/skill.md` hand-authored (A1). GLM R2 PASS 9.35, DeepSeek R2 PASS 9.6 (both confirmed no regression). | Claude Code |
