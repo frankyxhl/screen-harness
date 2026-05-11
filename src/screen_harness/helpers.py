@@ -205,28 +205,42 @@ def start_recording(
         start_new_session=True,
     )
 
-    # Wait for FFmpeg to confirm capture has started (up to 5 s).
-    started_at = _wait_for_ffmpeg_start(process, log_handle, timeout=5.0)
-
-    # Launch HUD subprocess (best-effort; recording must not fail if HUD fails).
-    hud_proc: subprocess.Popen | None = None
-    if hud_eligible:
-        hud_proc = _launch_hud_subprocess(
-            screen_device=picked.device,
-            region=region,
-            started_at=started_at,
-        )
-        if hud_proc is not None:
-            metadata["hud_active"] = True
-            _write_json(recording_dir / "metadata.json", metadata)
-
+    # Populate runtime state IMMEDIATELY after Popen so any KeyboardInterrupt
+    # or BaseException during the ~5 s FFmpeg-start wait or HUD launch can be
+    # cleaned up by `abort_active_recording()`.  Previously these fields were
+    # only set *after* both waits completed, so an interrupt during the wait
+    # window orphaned FFmpeg recording in the background (Codex P2 round 4).
     _STATE.recording_dir = recording_dir
     _STATE.timeline = timeline
-    _STATE.started_at = started_at
     _STATE.process = process
     _STATE.log_handle = log_handle
     _STATE.is_recording = True
-    _STATE.hud_process = hud_proc
+    _STATE.hud_process = None
+    _STATE.started_at = None
+
+    try:
+        # Wait for FFmpeg to confirm capture has started (up to 5 s).
+        started_at = _wait_for_ffmpeg_start(process, log_handle, timeout=5.0)
+        _STATE.started_at = started_at
+
+        # Launch HUD subprocess (best-effort; recording must not fail if HUD fails).
+        hud_proc: subprocess.Popen | None = None
+        if hud_eligible:
+            hud_proc = _launch_hud_subprocess(
+                screen_device=picked.device,
+                region=region,
+                started_at=started_at,
+            )
+            if hud_proc is not None:
+                metadata["hud_active"] = True
+                _write_json(recording_dir / "metadata.json", metadata)
+        _STATE.hud_process = hud_proc
+    except BaseException:
+        # Roll back to a state abort_active_recording can actually clean.
+        # `_STATE.is_recording` is already True and `_STATE.process` is set,
+        # so the outer caller's exception handler (or `screen-harness -c`'s
+        # KeyboardInterrupt handler) will SIGTERM the FFmpeg group.
+        raise
 
     # Register HUD teardown once per process (idempotent guard).
     global _HUD_ATEXIT_REGISTERED

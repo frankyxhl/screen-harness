@@ -222,3 +222,34 @@ class TestRegionOutOfBoundsInHelpers:
 
         metadata = json.loads((rec_dir / "metadata.json").read_text())
         assert metadata.get("hud_active") is False
+
+
+    def test_state_populated_before_ffmpeg_start_wait(self, isolated_state):
+        """Codex P2 round 4: _STATE must be populated immediately after
+        Popen so abort_active_recording works during the FFmpeg-start
+        wait window or HUD launch (where a KeyboardInterrupt would
+        otherwise orphan the FFmpeg process group)."""
+        ffmpeg_proc = _ffmpeg_popen_mock()
+
+        # Stub _wait_for_ffmpeg_start to raise — simulates an interrupt
+        # during the wait window.  _STATE must already be populated so a
+        # caller's handler can abort the recording.
+        def _interrupt(*args, **kwargs):
+            raise KeyboardInterrupt("user pressed Ctrl-C during ffmpeg wait")
+
+        with patch("screen_harness.screens.probe_screens", return_value=[_FAKE_SCREEN]), \
+             patch("screen_harness.screens.resolve_screen", return_value=_FAKE_PICK), \
+             patch("screen_harness.helpers._safe_ffmpeg_version", return_value="n/a"), \
+             patch("screen_harness.helpers._wait_for_ffmpeg_start", side_effect=_interrupt), \
+             patch("subprocess.Popen", return_value=ffmpeg_proc):
+            with pytest.raises(KeyboardInterrupt):
+                _helpers.start_recording(
+                    "interrupt-test",
+                    region=(100, 100, 800, 600),
+                    hud=False,
+                )
+
+        # _STATE should be populated even though start_recording raised
+        assert _helpers._STATE.is_recording is True
+        assert _helpers._STATE.process is ffmpeg_proc
+        assert _helpers._STATE.recording_dir is not None
