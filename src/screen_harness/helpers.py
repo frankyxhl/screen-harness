@@ -154,7 +154,6 @@ def start_recording(
         raw,
         duration=None,
         screen_device=screen_device_arg,
-        screen_index=screen or "0",
         audio_index=mic,
         capture_cursor=capture_cursor,
         capture_mouse_clicks=capture_mouse_clicks,

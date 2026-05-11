@@ -14,8 +14,7 @@ def build_screen_record_command(
     output: Path,
     *,
     duration: int | float | None,
-    screen_index: str = "0",
-    screen_device: "ScreenDevice | None" = None,
+    screen_device: "ScreenDevice",
     audio_index: str | None = None,
     ffmpeg: str = "ffmpeg",
     framerate: int = 30,
@@ -25,22 +24,26 @@ def build_screen_record_command(
 ) -> list[str]:
     """Build an AVFoundation screen-recording command.
 
+    `screen_device` is required.  Pass a `ScreenDevice` from
+    `screens.resolve_screen(...)`.  This is the camera-rejection contract:
+    callers cannot bypass it by supplying a raw integer index, because that
+    is exactly how the FaceTime camera at AVFoundation index 0 used to leak
+    into recordings (Codex bot finding P1 round 6).
+
     `region`, if provided, is `(x, y, width, height)` in screen-pixel coordinates;
     the recorder crops the AVFoundation capture to that rectangle so only the
     target window (or area) is encoded. Width/height are rounded down to even
     values to satisfy H.264.
-
-    When `screen_device` is provided it overrides `screen_index` and the device
-    is validated to be a real screen (display_id != 0 sentinel).
     """
     output = Path(output)
-    if screen_device is not None:
-        if screen_device.display_id == 0:
-            raise ValueError(
-                f"refusing to record from device {screen_device.av_name!r}; "
-                "expected a screen device (display_id is 0 — kCGNullDirectDisplay sentinel)"
-            )
-        screen_index = str(screen_device.av_index)
+    if screen_device is None:
+        raise ValueError("screen_device is required; resolve one via screens.resolve_screen()")
+    if screen_device.display_id == 0:
+        raise ValueError(
+            f"refusing to record from device {screen_device.av_name!r}; "
+            "expected a screen device (display_id is 0 — kCGNullDirectDisplay sentinel)"
+        )
+    screen_index = str(screen_device.av_index)
     av_input = f"{screen_index}:{audio_index if audio_index is not None else 'none'}"
     cmd = [
         ffmpeg,
@@ -80,19 +83,28 @@ def record_screen(
     output: Path,
     *,
     duration: int | float,
-    screen_index: str = "0",
     audio_index: str | None = None,
     ffmpeg: str = "ffmpeg",
     capture_cursor: bool = True,
     capture_mouse_clicks: bool = True,
+    screen_device: "ScreenDevice | None" = None,
 ) -> subprocess.CompletedProcess[str]:
-    """Record the main display to an output file for a fixed duration."""
+    """Record the main display to an output file for a fixed duration.
+
+    If `screen_device` is not provided, this helper resolves the default
+    main display via `screens.resolve_screen(None)` so spike CLI callers
+    (e.g. `screen-harness spike record`) still get the camera-rejection
+    guarantee (Codex bot finding P1 round 6).
+    """
     output = Path(output)
     output.parent.mkdir(parents=True, exist_ok=True)
+    if screen_device is None:
+        from .screens import resolve_screen
+        screen_device = resolve_screen(None, ffmpeg=ffmpeg).device
     cmd = build_screen_record_command(
         output,
         duration=duration,
-        screen_index=screen_index,
+        screen_device=screen_device,
         audio_index=audio_index,
         ffmpeg=ffmpeg,
         capture_cursor=capture_cursor,
