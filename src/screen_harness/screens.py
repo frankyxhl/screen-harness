@@ -32,6 +32,8 @@ class ScreenDevice:
     bounds: tuple[int, int, int, int]    # x, y, w, h in global pixel coords
     is_main: bool
     backing_scale: float
+    appkit_origin: tuple[float, float] = (0.0, 0.0)  # NSScreen.frame origin in AppKit points
+    appkit_size: tuple[float, float] = (0.0, 0.0)    # NSScreen.frame size in AppKit points
 
 
 @dataclass(frozen=True)
@@ -173,6 +175,14 @@ def probe_screens(*, ffmpeg: str = "ffmpeg") -> list[ScreenDevice]:
         ns = ns_screens.get(int(display_id))
         backing_scale = float(ns.backingScaleFactor()) if ns is not None else 1.0
 
+        if ns is not None:
+            frame = ns.frame()
+            appkit_origin = (float(frame.origin.x), float(frame.origin.y))
+            appkit_size = (float(frame.size.width), float(frame.size.height))
+        else:
+            appkit_origin = (float(x) / backing_scale, float(y) / backing_scale)
+            appkit_size = (float(w) / backing_scale, float(h) / backing_scale)
+
         screens.append(
             ScreenDevice(
                 av_index=av_index,
@@ -181,6 +191,8 @@ def probe_screens(*, ffmpeg: str = "ffmpeg") -> list[ScreenDevice]:
                 bounds=(x, y, w, h),
                 is_main=(int(display_id) == int(main_display_id)),
                 backing_scale=backing_scale,
+                appkit_origin=appkit_origin,
+                appkit_size=appkit_size,
             )
         )
 
