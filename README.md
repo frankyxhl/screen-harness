@@ -175,6 +175,32 @@ GitHub Actions runs on pull requests and pushes to `main`:
 - `alfred`: validates `rules/` with `uvx --from fx-alfred af validate`.
 - `package`: builds source and wheel distributions with `uv build`, then uploads `dist/*` as the `screen-harness-dist` workflow artifact.
 
-## Use as a Claude Skill
+## Use as an Agent Skill or Coding-Agent Instructions
 
-`SKILL.md` at the repo root is an AI-agent oriented install + usage prompt — drop the file (or its frontmatter+body) into a Claude Code or Claude Agent SDK skill bundle and the model can drive Screen Harness end-to-end without further hand-holding.
+`AGENTS.md` at the repo root is the canonical source of always-on instructions
+for coding agents that support the LF Agentic AI Foundation AGENTS.md spec
+(Feb 2026). Editors should modify `AGENTS.md` (or the tail files under
+`scripts/agent-docs-tails/`) and then regenerate the tool-specific files:
+
+```bash
+python scripts/sync_agent_docs.py
+```
+
+### Which file each tool reads
+
+| Tool | Reads file | Minimum version |
+|------|-----------|----------------|
+| Codex CLI | `AGENTS.md` | ≥ Feb 2026 release |
+| GitHub Copilot Chat | `.github/copilot-instructions.md` | current (opt-in — see below) |
+| Cursor | `AGENTS.md` | ≥ 2026.02 |
+| Windsurf | `AGENTS.md` | ≥ 2026.02 |
+| Amp | `AGENTS.md` | ≥ 2026.02 |
+| Devin | `AGENTS.md` | current |
+| Claude Code | `CLAUDE.md` | current (AGENTS.md support pending) |
+| Anthropic Skills (on-demand) | `SKILL.md` | current |
+
+**Copilot opt-in caveat:** `.github/copilot-instructions.md` is read by
+GitHub Copilot Chat *only* when the
+`github.copilot.chat.codeGeneration.useInstructionFiles` setting is enabled.
+This is per-user and off by default. Enable it in VS Code settings or at
+github.com.
