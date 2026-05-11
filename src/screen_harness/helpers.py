@@ -51,7 +51,12 @@ _HUD_ATEXIT_REGISTERED = False
 DEFAULT_HIGHLIGHT_COLOR = "blue@0.60"
 DEFAULT_HIGHLIGHT_THICKNESS = 10
 
+class RecordingStartFailed(RuntimeError):
+    """Raised when FFmpeg exits with a non-zero code before recording is confirmed."""
+
+
 __all__ = [
+    "RecordingStartFailed",
     "start_recording",
     "stop_recording",
     "wait",
@@ -220,7 +225,7 @@ def start_recording(
 
     try:
         # Wait for FFmpeg to confirm capture has started (up to 5 s).
-        started_at = _wait_for_ffmpeg_start(process, log_handle, timeout=5.0)
+        started_at = _wait_for_ffmpeg_start(process, log_handle, raw_path=raw, timeout=5.0)
         _STATE.started_at = started_at
 
         # Launch HUD subprocess (best-effort; recording must not fail if HUD fails).
@@ -263,12 +268,15 @@ def _signal_process_group(process: subprocess.Popen, sig: int) -> None:
 
 
 # FFmpeg stderr lines that confirm avfoundation capture has begun.
+# Intentionally narrow: b"avfoundation" (lower-case) was removed because it
+# also matches FFmpeg error lines like "avfoundation: failed to access screen",
+# producing false positives. b"frame=" / b"fps=" were removed because they
+# appear only after encoding starts (too late) and can appear in error context
+# too. b"Stream #0" is added because FFmpeg prints it when the output stream is
+# opened, which reliably indicates capture has begun.
 _FFMPEG_STARTED_PATTERNS = (
     b"AVFoundation capture started",
-    b"avfoundation",
-    b"frame=",
-    b"fps=",
-    b"Input #",
+    b"Stream #0",
 )
 
 
@@ -276,58 +284,86 @@ def _wait_for_ffmpeg_start(
     process: subprocess.Popen,
     log_handle: "IO[str]",
     *,
+    raw_path: Path,
     timeout: float = 5.0,
 ) -> float:
-    """Read FFmpeg stderr until a capture-started line appears (or timeout).
+    """Poll until recording is confirmed, FFmpeg crashes, or timeout expires.
 
-    Returns the monotonic time when capture was confirmed (or Popen time
-    if not confirmed within *timeout* seconds — logs a warning in that case).
+    Verification priority:
+    1. HARD WIN  — raw_path exists and its size exceeds 1024 bytes.  The file
+       is actively being written; capture is confirmed.  Returns monotonic time.
+    2. HARD FAIL — process.poll() is not None before the file grows.  FFmpeg
+       died during startup.  Raises RecordingStartFailed with the return code
+       and the last ~300 chars of stderr if available.
+    3. SOFT WIN  — a stderr pattern from _FFMPEG_STARTED_PATTERNS matched.
+       Returns confirmed_at[0] only when no hard-fail has occurred.
+    4. TIMEOUT   — deadline passed with no signal.  Logs a warning and returns
+       popen_time (the time captured before the loop — not now+timeout) so that
+       duration metadata stays anchored to the actual Popen call.
 
-    Stderr bytes are also forwarded to *log_handle* so the ffmpeg.log file
-    remains complete.
+    Stderr bytes are forwarded to *log_handle* so ffmpeg.log remains complete.
     """
-    import select
     import threading
 
-    # Codex P2 round 2 (PR #7): capture the launch-time *before* the wait
-    # loop so the timeout fallback returns Popen-time, not now+timeout.
-    # Otherwise duration metadata and any downstream timeline events are
-    # shifted by up to `timeout` seconds relative to the actual video.
+    # Capture popen_time BEFORE the wait loop so the timeout fallback returns
+    # the actual launch time, not now+timeout (PR #7 Codex P2 round 2).
     popen_time = time.monotonic()
     deadline = popen_time + timeout
     confirmed_at: list[float] = []
 
-    if getattr(process, "stderr", None) is None:
-        return popen_time
+    stderr_pipe = getattr(process, "stderr", None)
 
-    # Read FFmpeg stderr in a background thread so we don't block forever
-    # if FFmpeg never prints the expected line.
-    def _reader():
-        try:
-            for raw_line in process.stderr:
-                if log_handle:
-                    try:
-                        log_handle.write(raw_line.decode("utf-8", errors="replace"))
-                        log_handle.flush()
-                    except (OSError, ValueError):
-                        pass
-                if not confirmed_at:
-                    for pat in _FFMPEG_STARTED_PATTERNS:
-                        if pat in raw_line:
-                            confirmed_at.append(time.monotonic())
-                            break
-        except Exception:
-            pass
+    if stderr_pipe is not None:
+        # Read FFmpeg stderr in a background thread so we don't block the poll
+        # loop waiting for lines that may never arrive.
+        def _reader():
+            try:
+                for raw_line in stderr_pipe:
+                    if log_handle:
+                        try:
+                            log_handle.write(raw_line.decode("utf-8", errors="replace"))
+                            log_handle.flush()
+                        except (OSError, ValueError):
+                            pass
+                    if not confirmed_at:
+                        for pat in _FFMPEG_STARTED_PATTERNS:
+                            if pat in raw_line:
+                                confirmed_at.append(time.monotonic())
+                                break
+            except Exception:
+                pass
 
-    t = threading.Thread(target=_reader, daemon=True)
-    t.start()
+        t = threading.Thread(target=_reader, daemon=True)
+        t.start()
 
-    # Wait until confirmed or timeout
+    # Main poll loop — 50 ms cadence.
     while time.monotonic() < deadline:
+        # HARD WIN: output file is growing.
+        if raw_path.exists() and raw_path.stat().st_size > 1024:
+            return time.monotonic()
+
+        # HARD FAIL: process exited before any bytes were written.
+        _poll = getattr(process, "poll", None)
+        if _poll is not None and _poll() is not None:
+            stderr_tail = ""
+            if stderr_pipe is not None:
+                try:
+                    chunk = stderr_pipe.read(300)
+                    if chunk:
+                        stderr_tail = f" stderr: {chunk.decode('utf-8', errors='replace')[-300:]}"
+                except Exception:
+                    pass
+            raise RecordingStartFailed(
+                f"FFmpeg exited rc={process.returncode} during startup{stderr_tail}"
+            )
+
+        # SOFT WIN: stderr pattern matched (fallback; less reliable than file growth).
         if confirmed_at:
             return confirmed_at[0]
+
         time.sleep(0.05)
 
+    # TIMEOUT: no signal received within the deadline.
     if not confirmed_at:
         logger.warning(
             "FFmpeg capture start not confirmed within %.1fs; "

@@ -13,6 +13,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from screen_harness import helpers as _helpers
+from screen_harness.helpers import RecordingStartFailed
 from screen_harness.screens import PickedScreen, ScreenDevice
 
 
@@ -33,17 +34,26 @@ def _ffmpeg_popen_mock():
     proc.returncode = 0
     proc.stdin = MagicMock()
     proc.stdout = MagicMock()
-    proc.stderr = None  # no stderr pipe → _wait_for_ffmpeg_start returns immediately
+    proc.stderr = None  # no stderr pipe → _wait_for_ffmpeg_start skips reader thread
     proc.pid = 99999
+    proc.poll.return_value = None  # process still alive; required by HARD FAIL check
     proc.wait.return_value = 0
     return proc
 
 
 @pytest.fixture()
 def isolated_state(tmp_path):
-    """Reset helpers._STATE to a fresh RuntimeState rooted at tmp_path."""
+    """Reset helpers._STATE to a fresh RuntimeState rooted at tmp_path.
+
+    Also patches _wait_for_ffmpeg_start to return immediately (popen_time) so
+    that tests focused on HUD/region behavior don't wait for the full startup
+    timeout. Tests that exercise _wait_for_ffmpeg_start directly live in
+    test_helpers_startup_verify.py and do not use this fixture.
+    """
     _helpers.configure(tmp_path)
-    yield tmp_path
+    import time as _time
+    with patch("screen_harness.helpers._wait_for_ffmpeg_start", return_value=_time.monotonic()):
+        yield tmp_path
     # Ensure we don't leave a stale recording state for other tests
     _helpers._STATE.is_recording = False
     _helpers._STATE.process = None
@@ -253,3 +263,54 @@ class TestRegionOutOfBoundsInHelpers:
         assert _helpers._STATE.is_recording is True
         assert _helpers._STATE.process is ffmpeg_proc
         assert _helpers._STATE.recording_dir is not None
+
+
+@pytest.fixture()
+def isolated_state_real_wait(tmp_path):
+    """Like isolated_state but does NOT patch _wait_for_ffmpeg_start.
+
+    Use this for tests that exercise the real startup verification logic
+    (e.g. RecordingStartFailed propagation through start_recording).
+    """
+    _helpers.configure(tmp_path)
+    yield tmp_path
+    _helpers._STATE.is_recording = False
+    _helpers._STATE.process = None
+    _helpers._STATE.log_handle = None
+    _helpers._STATE.recording_dir = None
+    _helpers._STATE.timeline = None
+    _helpers._STATE.started_at = None
+    _helpers._STATE.screen_inventory = None
+
+
+class TestStartRecordingRaisesWhenFFmpegDiesImmediately:
+    """Integration: start_recording propagates RecordingStartFailed and resets state."""
+
+    def test_raises_recording_start_failed(self, isolated_state_real_wait):
+        """When FFmpeg Popen mock has poll() return 7 immediately,
+        start_recording must raise RecordingStartFailed and reset
+        _STATE.is_recording to False (cleanup path ran)."""
+
+        proc = MagicMock(spec=subprocess.Popen)
+        proc.pid = 55555
+        proc.returncode = 7
+        proc.poll.return_value = 7
+        proc.stdin = MagicMock()
+        proc.stdout = MagicMock()
+        proc.stderr = None
+        proc.wait.return_value = 7
+
+        with patch("screen_harness.screens.probe_screens", return_value=[_FAKE_SCREEN]), \
+             patch("screen_harness.screens.resolve_screen", return_value=_FAKE_PICK), \
+             patch("screen_harness.helpers._safe_ffmpeg_version", return_value="n/a"), \
+             patch("subprocess.Popen", return_value=proc):
+            with pytest.raises(RecordingStartFailed) as exc_info:
+                _helpers.start_recording(
+                    "ffmpeg-dies-test",
+                    region=(100, 100, 800, 600),
+                    hud=False,
+                )
+
+        assert "rc=7" in str(exc_info.value)
+        # The exception propagates out of start_recording's BaseException re-raise.
+        assert exc_info.type is RecordingStartFailed
