@@ -62,21 +62,24 @@ def transform_region_to_appkit(
     Returns ``(appkit_x, appkit_y, appkit_w, appkit_h)`` in the global AppKit
     coordinate space with a **bottom-left origin**.
 
-    Conversion:
-        appkit_x = screen.bounds.x + region_x / backing_scale
-        appkit_y = screen.bounds.y + (screen_h_pts - (region_y + region_h) / backing_scale)
+    Conversion uses NSScreen.frame-derived AppKit point coordinates so that
+    multi-monitor mixed-DPI layouts are handled correctly.  CGDisplayBounds
+    returns pixel coordinates, but NSScreen.frame returns the AppKit-point
+    origin that accounts for the logical (point) width of every display to the
+    left in the layout.
+
+        appkit_x = appkit_origin.x + region_x / backing_scale
+        appkit_y = appkit_origin.y + (appkit_h_pts - (region_y + region_h) / backing_scale)
         appkit_w = region_w / backing_scale
         appkit_h = region_h / backing_scale
-
-    where ``screen_h_pts = screen.bounds[3] / backing_scale``.
     """
     rx, ry, rw, rh = region
-    bx, by, _bw, bh = screen.bounds
+    bx, by = screen.appkit_origin
+    _sw_pts, sh_pts = screen.appkit_size
     s = screen.backing_scale
 
-    screen_h_pts = bh / s
     appkit_x = bx + rx / s
-    appkit_y = by + (screen_h_pts - (ry + rh) / s)
+    appkit_y = by + (sh_pts - (ry + rh) / s)
     appkit_w = rw / s
     appkit_h = rh / s
     return (appkit_x, appkit_y, appkit_w, appkit_h)
@@ -564,23 +567,28 @@ def run_hud_subprocess() -> None:
         # Reconstruct ScreenDevice from the dict the parent serialised
         from .screens import ScreenDevice as _SD
         bounds_raw = screen_data.get("bounds", [0, 0, 1920, 1080])
+        bounds_tuple = tuple(bounds_raw)
+        backing_scale = screen_data.get("backing_scale", 1.0)
+        appkit_origin_raw = screen_data.get("appkit_origin")
+        appkit_size_raw = screen_data.get("appkit_size")
+        if appkit_origin_raw is not None and appkit_size_raw is not None:
+            appkit_origin = tuple(appkit_origin_raw)
+            appkit_size = tuple(appkit_size_raw)
+        else:
+            appkit_origin = (float(bounds_tuple[0]) / backing_scale, float(bounds_tuple[1]) / backing_scale)
+            appkit_size = (float(bounds_tuple[2]) / backing_scale, float(bounds_tuple[3]) / backing_scale)
         s_device = _SD(
             av_index=screen_data.get("av_index", 0),
             av_name=screen_data.get("av_name", ""),
             display_id=screen_data.get("display_id", 0),
-            bounds=tuple(bounds_raw),
+            bounds=bounds_tuple,
             is_main=screen_data.get("is_main", True),
-            backing_scale=screen_data.get("backing_scale", 1.0),
+            backing_scale=backing_scale,
+            appkit_origin=appkit_origin,
+            appkit_size=appkit_size,
         )
 
-        bx, by, bw, bh = s_device.bounds
-        sc = s_device.backing_scale
-        screen_appkit = (
-            float(bx),
-            float(by),
-            bw / sc,
-            bh / sc,
-        )
+        screen_appkit = (*s_device.appkit_origin, *s_device.appkit_size)
         crop_appkit = transform_region_to_appkit(tuple(region), s_device)
 
         # Frame panels

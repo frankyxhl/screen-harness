@@ -150,9 +150,7 @@ def start_recording(
     if hud and region is not None:
         from .hud import pick_rec_pill_anchor, transform_region_to_appkit
         _crop_appkit = transform_region_to_appkit(region, picked.device)
-        _bx, _by, _bw, _bh = picked.device.bounds
-        _sc = picked.device.backing_scale
-        _screen_appkit = (float(_bx), float(_by), _bw / _sc, _bh / _sc)
+        _screen_appkit = (*picked.device.appkit_origin, *picked.device.appkit_size)
         _pill_anchor = pick_rec_pill_anchor(_crop_appkit, _screen_appkit)
         if _pill_anchor == "none":
             print(
@@ -577,7 +575,11 @@ def abort_active_recording() -> None:
     process = _STATE.process
     log_handle = _STATE.log_handle
     recording_dir = _STATE.recording_dir
+    hud_proc = _STATE.hud_process
     try:
+        # Tear down HUD first so the pill disappears immediately.
+        _stop_hud_subprocess(hud_proc)
+
         # The outer finally below always nulls runtime state, so a metadata
         # write or log close that raises here cannot leave the harness wedged
         # into thinking a recording is still live — same anti-wedge guarantee
@@ -608,6 +610,7 @@ def abort_active_recording() -> None:
         _STATE.is_recording = False
         _STATE.process = None
         _STATE.log_handle = None
+        _STATE.hud_process = None
 
 
 def wait(seconds: float = 1.0) -> None:

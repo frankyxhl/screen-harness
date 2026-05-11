@@ -21,14 +21,20 @@ def _make_screen(
     bounds: tuple[int, int, int, int],
     is_main: bool = True,
     backing_scale: float,
+    appkit_origin: tuple[float, float] | None = None,
+    appkit_size: tuple[float, float] | None = None,
 ) -> ScreenDevice:
+    s = backing_scale
+    bx, by, bw, bh = bounds
     return ScreenDevice(
         av_index=av_index,
         av_name=av_name,
         display_id=display_id,
         bounds=bounds,
         is_main=is_main,
-        backing_scale=backing_scale,
+        backing_scale=s,
+        appkit_origin=appkit_origin if appkit_origin is not None else (bx / s, by / s),
+        appkit_size=appkit_size if appkit_size is not None else (bw / s, bh / s),
     )
 
 
@@ -91,50 +97,65 @@ class TestTransformRetina2x:
         assert h == 600.0
 
 
-class TestTransformDualScreen:
-    """Side-by-side dual screen: 1080p at (0,0), Retina at (1920,0).
+class TestTransformDualScreenMixedDPI:
+    """Mixed-DPI dual-screen layout.
 
-    Region is on the Retina screen, starting at global pixel x=2120
-    (1920 + 200 offset within that screen).
+    Built-in Retina @2x: pixel bounds (0,0,2880,1800), appkit_origin=(0,0),
+    appkit_size=(1440,900), backing_scale=2.0.
+
+    External 1x display to the right: pixel bounds (2880,0,1920,1080),
+    appkit_origin=(1440,0), appkit_size=(1920,1080), backing_scale=1.0.
+
+    The second screen's AppKit origin is 1440 (logical width of the Retina),
+    NOT 2880 (its pixel x coordinate).  This is the mixed-DPI bug the fix
+    addresses: if we used bounds.x=2880 as the AppKit origin, the HUD panel
+    would be placed ~1440 points off-screen to the right.
     """
 
     def setup_method(self):
-        self.main_screen = _make_screen(
-            av_index=0,
-            bounds=(0, 0, 1920, 1080),
-            backing_scale=1.0,
-        )
+        # Retina built-in: pixel bounds start at (0,0), 2880×1800 pixels
+        # NSScreen.frame → origin=(0,0), size=(1440,900) in AppKit points
         self.retina_screen = _make_screen(
+            av_index=0,
+            bounds=(0, 0, 2880, 1800),
+            is_main=True,
+            backing_scale=2.0,
+            appkit_origin=(0.0, 0.0),
+            appkit_size=(1440.0, 900.0),
+        )
+        # External 1x: pixel bounds start at (2880,0), 1920×1080 pixels
+        # NSScreen.frame → origin=(1440,0), size=(1920,1080) in AppKit points
+        self.external_screen = _make_screen(
             av_index=1,
             display_id=2,
-            bounds=(1920, 0, 2880, 1800),
+            bounds=(2880, 0, 1920, 1080),
             is_main=False,
-            backing_scale=2.0,
+            backing_scale=1.0,
+            appkit_origin=(1440.0, 0.0),
+            appkit_size=(1920.0, 1080.0),
         )
-        # Region is 200px into the Retina screen at global coords (2120, 100)
-        self.region = (200, 100, 800, 600)
+        self.region = (100, 100, 800, 600)
 
     def test_retina_region(self):
         x, y, w, h = transform_region_to_appkit(self.region, self.retina_screen)
-        # AppKit space: retina screen origin is at (1920, 0) in AppKit points
-        # (the bounds x=1920 is already in points for the CGDisplayBounds)
-        # appkit_x = 1920 + 200/2 = 1920 + 100 = 2020.0
-        # screen AppKit height = 1800/2 = 900
+        # appkit_x = 0 + 100/2 = 50.0
+        # screen AppKit height = 900
         # appkit_y = 0 + (900 - (100+600)/2) = 900 - 350 = 550.0
         # appkit_w = 800/2 = 400.0
         # appkit_h = 600/2 = 300.0
-        assert x == 2020.0
+        assert x == 50.0
         assert y == 550.0
         assert w == 400.0
         assert h == 300.0
 
-    def test_main_screen_region(self):
-        region = (100, 100, 800, 600)
-        x, y, w, h = transform_region_to_appkit(region, self.main_screen)
-        # backing_scale=1.0, origin at (0, 0)
-        # appkit_x = 0 + 100/1 = 100.0
+    def test_external_screen_region_uses_appkit_origin_not_pixel_coord(self):
+        """Verify the fix: appkit_origin=1440 is used, not pixel bounds.x=2880."""
+        x, y, w, h = transform_region_to_appkit(self.region, self.external_screen)
+        # appkit_x = 1440 + 100/1 = 1540.0  (NOT 2880 + 100 = 2980 — the old bug)
         # appkit_y = 0 + (1080 - (100+600)/1) = 1080 - 700 = 380.0
-        assert x == 100.0
+        # appkit_w = 800/1 = 800.0
+        # appkit_h = 600/1 = 600.0
+        assert x == 1540.0, f"Expected 1540.0 (appkit origin), got {x} (would be 2980.0 with pixel coord)"
         assert y == 380.0
         assert w == 800.0
         assert h == 600.0

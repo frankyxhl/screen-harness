@@ -24,6 +24,8 @@ _FAKE_SCREEN = ScreenDevice(
     bounds=(0, 0, 1920, 1080),
     is_main=True,
     backing_scale=2.0,
+    appkit_origin=(0.0, 0.0),
+    appkit_size=(960.0, 540.0),
 )
 _FAKE_PICK = PickedScreen(device=_FAKE_SCREEN, reason="default-main")
 
@@ -309,6 +311,44 @@ class TestTightCropDisablesHUD:
         assert metadata.get("hud_active") is False
         captured = capsys.readouterr()
         assert "too close to screen edges" in captured.out
+
+
+class TestAbortActiveRecordingTearsDownHUD:
+    """Finding 2: abort_active_recording must close the HUD stdin and clear hud_process."""
+
+    def test_abort_active_recording_tears_down_hud(self, isolated_state):
+        """When a recording with hud=True is aborted, the HUD subprocess stdin
+        must be closed and _STATE.hud_process must be reset to None."""
+        ffmpeg_proc = _ffmpeg_popen_mock()
+        hud_proc = MagicMock(spec=subprocess.Popen)
+        hud_proc.returncode = None
+        hud_proc.stdin = MagicMock()
+        hud_proc.stdin.closed = False
+        hud_proc.pid = 77777
+        hud_proc.poll.return_value = None  # still alive before abort
+
+        def _fake_popen(cmd, **kwargs):
+            cmd_str = " ".join(str(c) for c in cmd)
+            if "screen_harness.hud" in cmd_str:
+                return hud_proc
+            return ffmpeg_proc
+
+        with patch("screen_harness.screens.probe_screens", return_value=[_FAKE_SCREEN]), \
+             patch("screen_harness.screens.resolve_screen", return_value=_FAKE_PICK), \
+             patch("screen_harness.helpers._safe_ffmpeg_version", return_value="n/a"), \
+             patch("subprocess.Popen", side_effect=_fake_popen):
+            _helpers.start_recording(
+                "abort-hud-test",
+                region=(100, 100, 800, 600),
+                hud=True,
+            )
+
+        assert _helpers._STATE.hud_process is not None
+
+        _helpers.abort_active_recording()
+
+        assert _helpers._STATE.hud_process is None
+        hud_proc.stdin.close.assert_called()
 
 
 class TestStartRecordingRaisesWhenFFmpegDiesImmediately:
