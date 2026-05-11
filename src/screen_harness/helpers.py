@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import atexit
 import logging
 import os
 import shutil
@@ -46,6 +47,7 @@ class RuntimeState:
 
 
 _STATE = RuntimeState(root=Path.cwd())
+_HUD_ATEXIT_REGISTERED = False
 DEFAULT_HIGHLIGHT_COLOR = "blue@0.60"
 DEFAULT_HIGHLIGHT_THICKNESS = 10
 
@@ -226,9 +228,11 @@ def start_recording(
     _STATE.is_recording = True
     _STATE.hud_process = hud_proc
 
-    # Ensure HUD is torn down on KeyboardInterrupt / process exit.
-    import atexit as _atexit
-    _atexit.register(_atexit_hud_cleanup)
+    # Register HUD teardown once per process (idempotent guard).
+    global _HUD_ATEXIT_REGISTERED
+    if not _HUD_ATEXIT_REGISTERED:
+        atexit.register(_atexit_hud_cleanup)
+        _HUD_ATEXIT_REGISTERED = True
 
     return recording_dir
 
