@@ -107,31 +107,27 @@ def start_recording(
     from dataclasses import asdict as _asdict
 
     if _STATE.screen_inventory is None:
-        try:
-            _STATE.screen_inventory = probe_screens(ffmpeg=ffmpeg_path)
-            print("Available screens:")
-            for s in _STATE.screen_inventory:
-                main_marker = "  MAIN" if s.is_main else ""
-                print(f"  [{s.av_index}] {s.av_name}  display_id={s.display_id} bounds={s.bounds}{main_marker}")
-        except Exception as exc:
-            logger.warning("Screen probe failed: %s — falling back to index 0", exc)
-            _STATE.screen_inventory = []
+        # No try/except — probe failures must propagate. Silently falling back
+        # to AVFoundation index 0 is the camera-misuse bug D1 exists to
+        # prevent (Codex bot finding P1 on PR #5, round 2).
+        _STATE.screen_inventory = probe_screens(ffmpeg=ffmpeg_path)
+        print("Available screens:")
+        for s in _STATE.screen_inventory:
+            main_marker = "  MAIN" if s.is_main else ""
+            print(f"  [{s.av_index}] {s.av_name}  display_id={s.display_id} bounds={s.bounds}{main_marker}")
 
-    try:
-        _screen_spec: str | int | None = screen
-        if _screen_spec is not None:
-            try:
-                _screen_spec = int(_screen_spec)
-            except (ValueError, TypeError):
-                pass
-        picked = resolve_screen(_screen_spec, app=app, ffmpeg=ffmpeg_path)
-        print(f"Recording from: [{picked.device.av_index}] {picked.device.av_name}  ({picked.reason})")
-        picked_screen_meta = _asdict(picked.device) | {"reason": picked.reason}
-        screen_device_arg = picked.device
-    except Exception as exc:
-        logger.warning("Screen resolve failed: %s — falling back to index 0", exc)
-        picked_screen_meta = None
-        screen_device_arg = None
+    _screen_spec: str | int | None = screen
+    if _screen_spec is not None:
+        try:
+            _screen_spec = int(_screen_spec)
+        except (ValueError, TypeError):
+            pass
+    # Likewise: resolve_screen failures (e.g. user passed a camera index, or
+    # auto:<App> with no front window AND no main display) must raise.
+    picked = resolve_screen(_screen_spec, app=app, ffmpeg=ffmpeg_path)
+    print(f"Recording from: [{picked.device.av_index}] {picked.device.av_name}  ({picked.reason})")
+    picked_screen_meta = _asdict(picked.device) | {"reason": picked.reason}
+    screen_device_arg = picked.device
 
     metadata = {
         "recording_id": recording_id,

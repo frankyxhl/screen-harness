@@ -340,3 +340,14 @@ def test_probe_screens_calls_CGGetActiveDisplayList_with_out_params():
     quartz.CGGetActiveDisplayList.assert_called_with(16, None, None)
     assert len(screens) == 1
     assert screens[0].display_id == 1001
+
+
+def test_start_recording_propagates_probe_failure_no_camera_fallback():
+    """Codex bot P1 (round 2): probe failure must not silently fall back to
+    recording from AVFoundation index 0."""
+    from screen_harness import helpers
+    helpers.configure(Path("/tmp/sh-codex-p1-test"))
+    with patch("screen_harness.screens.probe_screens",
+               side_effect=ScreenProbeError("simulated probe failure")):
+        with pytest.raises(ScreenProbeError, match="simulated probe failure"):
+            helpers.start_recording("camera_safety_regression")
