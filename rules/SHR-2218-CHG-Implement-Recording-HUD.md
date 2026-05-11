@@ -3,7 +3,8 @@
 **Applies to:** SHR project
 **Last updated:** 2026-05-11
 **Last reviewed:** 2026-05-11
-**Status:** Approved
+**Status:** Completed
+**Merged:** PR #7 (commit 9163013252) on 2026-05-11; closed Codex bot findings across 11 review rounds (2× P1 + 9× P2) + trinity final 3/3 PASS (glm/deepseek/minimax). HUD production rendering verified by manual smoke test on user's interactive terminal session.
 **Revision:** R2 — addresses Trinity R1 review (GLM FAIL 8.4, DeepSeek FAIL 6.3, MiniMax FAIL 5.8)
 **Approved by:** Trinity R2 — glm PASS 9.2, deepseek PASS 9.2, minimax PASS 9.2 (3/3 unanimous, all R1 blockers closed, zero new blockers)
 **Date:** 2026-05-11
@@ -289,3 +290,7 @@ CHG-2217 stays committed as a free-standing regression net.
 |------|--------|----|
 | 2026-05-11 | Initial CHG, implements approved PRP-2214 R2; absorbs the paired coloured-square AV↔CGDirectDisplayID test deferred from CHG-2217 §Plan item 6. | Claude Code |
 | 2026-05-11 | R2 — Address Trinity R1 (GLM 8.4, DeepSeek 6.3, MiniMax 5.8, all FAIL): pin REC red to `#FF3B30` + tight colour predicate; spec 4-pt stroke unit (not pixels); add lifecycle latency tests (200ms teardown / 300ms startup / 1s parent-crash); add HUD-on-vs-off frame-hash equivalence test; add HUD-failure-recovery test; spec `sys.executable` + `AppHelper.callAfter` thread bridge + FFmpeg-confirmed `started_at` origin + monotonic-clock timer derivation; spec `compute_frame_stroke_rects` + `format_rec_time` pure-function extractions; spec `RegionOutOfBoundsError` overflow + multi-monitor mismatch refusal; spec `metadata.json["hud_active"]`; per-screen colour allocation + 8×8 centre block + Euclidean ≤10 for coloured-square test. | Claude Code |
+| 2026-05-11 | Approved R2 — Trinity 3/3 PASS @ 9.2; implementation via coder (sonnet) subagent. | Claude Code |
+| 2026-05-11 | Codex bot review loop (11 rounds, COR-1612 + COR-1615): P1 r3 `setActivationPolicy_(4)`→1 (root cause behind SHR-2216 misattribution); P1 r5 edge-fallback pill leaked into crop → fail-closed "none" sentinel; P2 r1 anchor needs room for full pill; P2 r2 popen-time on timeout + HUD survival poll; P2 r4 _STATE populated before wait; P2 r6 cleanup on RecordingStartFailed; P2 r7 start/status race via sync state update; P2 r8 mixed-DPI coords via NSScreen.frame origin; P2 r9 abort tears down HUD; P2 r10 track HUD before metadata write; P2 r11 select.select timeout on readline. | Claude Code |
+| 2026-05-11 | Trinity final 3/3 PASS: glm 9.0 (after B1 fix) / deepseek 9.25 / minimax 9.35. HUD production rendering verified by manual smoke test from user's interactive terminal. Merged PR #7 = 9163013252. | Claude Code |
+| 2026-05-11 | Status → Completed after PR #7 merge. | Claude Code |

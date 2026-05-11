@@ -3,7 +3,7 @@
 **Applies to:** SHR project
 **Last updated:** 2026-05-11
 **Last reviewed:** 2026-05-11
-**Status:** Approved
+**Status:** Implemented
 **Revision:** R2 — re-architected after spike SHR-2216
 **Approved by:** Trinity R2 — glm PASS 9.33, deepseek PASS 9.0, minimax PASS 9.3 (3/3 unanimous)
 **Related:** D2 in SHR-2212, depends on PRP-2213 (PyObjC dependency),
