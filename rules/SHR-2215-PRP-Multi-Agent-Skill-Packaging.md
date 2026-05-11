@@ -3,7 +3,7 @@
 **Applies to:** SHR project
 **Last updated:** 2026-05-11
 **Last reviewed:** 2026-05-11
-**Status:** Approved
+**Status:** Implemented
 **Revision:** R2.1 — re-architected after R1 + web research; consumer-version pin from DeepSeek advisory
 **Approved by:** Trinity R2 — glm PASS 9.00, deepseek PASS 9.0, minimax PASS 9.3 (3/3 unanimous)
 **Related:** D3 in SHR-2212
