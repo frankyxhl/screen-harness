@@ -351,6 +351,47 @@ class TestAbortActiveRecordingTearsDownHUD:
         hud_proc.stdin.close.assert_called()
 
 
+class TestHUDCleanedUpWhenMetadataWriteFails:
+    """Codex P2 round 10: HUD must be torn down when metadata write fails after HUD launch."""
+
+    def test_hud_cleaned_up_when_metadata_write_fails_after_hud_launch(self, isolated_state):
+        """If _write_json raises on the hud_active=True rewrite, start_recording
+        must propagate the error and the HUD subprocess must still be torn down."""
+        ffmpeg_proc = _ffmpeg_popen_mock()
+        hud_proc = MagicMock(spec=subprocess.Popen)
+        hud_proc.returncode = None
+        hud_proc.stdin = MagicMock()
+        hud_proc.stdin.closed = False
+        hud_proc.pid = 66666
+        hud_proc.poll.return_value = None  # still alive
+
+        def _fake_popen(cmd, **kwargs):
+            cmd_str = " ".join(str(c) for c in cmd)
+            if "screen_harness.hud" in cmd_str:
+                return hud_proc
+            return ffmpeg_proc
+
+        # First call (initial metadata write) succeeds; second (hud_active=True) raises.
+        with patch("screen_harness.screens.probe_screens", return_value=[_FAKE_SCREEN]), \
+             patch("screen_harness.screens.resolve_screen", return_value=_FAKE_PICK), \
+             patch("screen_harness.helpers._safe_ffmpeg_version", return_value="n/a"), \
+             patch("subprocess.Popen", side_effect=_fake_popen), \
+             patch(
+                 "screen_harness.helpers._write_json",
+                 side_effect=[None, OSError("disk full")],
+             ):
+            with pytest.raises(OSError, match="disk full"):
+                _helpers.start_recording(
+                    "hud-metadata-fail",
+                    region=(100, 100, 800, 600),
+                    hud=True,
+                )
+
+        assert hud_proc.stdin.close.called, "HUD stdin must be closed on cleanup"
+        assert _helpers._STATE.hud_process is None
+        assert _helpers._STATE.is_recording is False
+
+
 class TestStartRecordingRaisesWhenFFmpegDiesImmediately:
     """Integration: start_recording propagates RecordingStartFailed and resets state."""
 

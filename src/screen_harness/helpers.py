@@ -238,9 +238,9 @@ def start_recording(
                 started_at=started_at,
             )
             if hud_proc is not None:
+                _STATE.hud_process = hud_proc
                 metadata["hud_active"] = True
                 _write_json(recording_dir / "metadata.json", metadata)
-        _STATE.hud_process = hud_proc
     except BaseException:
         _cleanup_failed_start(process, log_handle, hud_proc=_STATE.hud_process)
         raise
@@ -295,11 +295,7 @@ def _cleanup_failed_start(
             log_handle.close()
     except Exception:
         pass
-    if hud_proc is not None:
-        try:
-            hud_proc.terminate()
-        except Exception:
-            pass
+    _stop_hud_subprocess(hud_proc)
     _STATE.is_recording = False
     _STATE.process = None
     _STATE.log_handle = None
