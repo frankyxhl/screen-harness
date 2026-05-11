@@ -5,7 +5,7 @@ Detection algorithm is locale-independent (count-based, not name-based):
   screen k has av_index = camera_count + k
 
 PyObjC (Quartz + AppKit) is a soft dependency.  When absent the module degrades
-to "main display only" mode: display_id=0, bounds=(0,0,0,0), backing_scale=1.0.
+to "main display only" mode: display_id=-1 sentinel, bounds=(0,0,0,0), backing_scale=1.0.
 Auto-app resolution (app= kwarg) raises ScreenProbeError without PyObjC.
 """
 
@@ -28,7 +28,7 @@ logger = logging.getLogger("screen_harness")
 class ScreenDevice:
     av_index: int                        # FFmpeg avfoundation -i N
     av_name: str                         # raw locale-dependent device name
-    display_id: int                      # CGDirectDisplayID (0 = unknown)
+    display_id: int                      # CGDirectDisplayID (0 = kCGNullDirectDisplay → camera-rejection sentinel; -1 = PyObjC-absent unknown but trust av_index)
     bounds: tuple[int, int, int, int]    # x, y, w, h in global pixel coords
     is_main: bool
     backing_scale: float
