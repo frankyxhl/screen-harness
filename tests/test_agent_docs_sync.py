@@ -126,9 +126,9 @@ def test_render_target_skill_emits_sorted_yaml_frontmatter():
     source_hash = sync.compute_source_hash(agents_text + tail_text)
     result = sync.render_target("skill", agents_text, tail_fm, tail_body, source_hash)
 
+    assert result.startswith("---\n"), "SKILL.md must start with YAML frontmatter at byte 0"
     lines = result.splitlines()
-    assert lines[0] == "<!-- GENERATED FROM AGENTS.md + scripts/agent-docs-tails/skill.md"
-    # find the --- block
+    # find the --- block (starts at line 0)
     fm_start = lines.index("---")
     fm_end = lines.index("---", fm_start + 1)
     fm_lines = lines[fm_start + 1:fm_end]

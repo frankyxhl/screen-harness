@@ -96,14 +96,14 @@ def render_target(
 ) -> str:
     """Assemble the final bytes for a target file.
 
-    For 'skill': banner + emitted YAML frontmatter + AGENTS.md pointer + tail body.
+    For 'skill': emitted YAML frontmatter + banner + AGENTS.md pointer + tail body.
     For 'claude' / 'copilot': banner + AGENTS.md body + tail body.
     """
     banner = build_banner(target, source_hash)
     if target == "skill":
         fm = emit_frontmatter(tail_frontmatter)
         pointer = "\nSee [AGENTS.md](AGENTS.md) for full agent instructions.\n"
-        return canonicalise(banner + fm + pointer + tail_body)
+        return canonicalise(fm + banner + pointer + tail_body)
     else:
         return canonicalise(banner + agents_body + tail_body)
 
