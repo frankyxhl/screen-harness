@@ -1,0 +1,7 @@
+ffmpeg version 6.1.2 Copyright (c) 2000-2024 the FFmpeg developers
+  built with Apple clang version 15.0.0 (clang-1500.3.9.4)
+[AVFoundation indev @ 0x600003a6c200] AVFoundation video devices:
+[AVFoundation indev @ 0x600003a6c200] [0] FaceTime高清摄像头
+[AVFoundation indev @ 0x600003a6c200] [1] 捕捉屏幕 0
+[AVFoundation indev @ 0x600003a6c200] AVFoundation audio devices:
+[AVFoundation indev @ 0x600003a6c200] [0] MacBook Pro麦克风

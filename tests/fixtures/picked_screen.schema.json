@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "picked_screen",
+  "description": "Metadata block written into metadata.json describing the chosen screen device.",
+  "type": "object",
+  "required": ["av_index", "av_name", "display_id", "bounds", "is_main", "backing_scale", "reason"],
+  "additionalProperties": false,
+  "properties": {
+    "av_index": {
+      "type": "integer",
+      "description": "AVFoundation device index used in ffmpeg -i N:audio"
+    },
+    "av_name": {
+      "type": "string",
+      "description": "Raw locale-dependent device name from AVFoundation"
+    },
+    "display_id": {
+      "type": "integer",
+      "description": "CGDirectDisplayID (0 means unknown/no-PyObjC fallback)"
+    },
+    "bounds": {
+      "type": "array",
+      "description": "x, y, width, height in global screen-pixel coordinates",
+      "items": {"type": "integer"},
+      "minItems": 4,
+      "maxItems": 4
+    },
+    "is_main": {
+      "type": "boolean",
+      "description": "True if this is the CGMainDisplayID() display"
+    },
+    "backing_scale": {
+      "type": "number",
+      "description": "Retina backing scale factor (1.0 or 2.0 typical)"
+    },
+    "reason": {
+      "type": "string",
+      "description": "How the screen was selected: default-main | explicit-int:N | display-pos:N | auto-front-app:AppName | auto-no-app-no-front-window:fallback-main"
+    }
+  }
+}
