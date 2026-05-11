@@ -411,3 +411,20 @@ def test_probe_screens_handles_muxed_device_offset():
     assert len(screens) == 1
     assert screens[0].av_index == 2  # skipped past camera (0) and muxed (1)
     assert screens[0].av_name == "Capture screen 0"
+
+
+def test_resolve_screen_auto_prefix_routes_to_app_resolution():
+    """Codex P2 round 7: `screen="auto:Safari"` is documented in PRP §Scope
+    and must reach the app-window-center path."""
+    main_screen = _make_screen_device(av_index=1, is_main=True, bounds=(0, 0, 1920, 1080))
+    with _patch_probe([main_screen]):
+        with patch("screen_harness.screens._get_app_window_center", return_value=(500, 500)):
+            picked = resolve_screen("auto:Safari")
+    assert picked.reason == "auto-front-app:Safari"
+
+
+def test_resolve_screen_auto_prefix_empty_app_name_raises():
+    main_screen = _make_screen_device(av_index=1, is_main=True)
+    with _patch_probe([main_screen]):
+        with pytest.raises(ValueError, match="auto: spec requires an app name"):
+            resolve_screen("auto:")

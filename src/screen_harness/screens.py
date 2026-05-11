@@ -220,6 +220,15 @@ def resolve_screen(
                 return s
         return screens[0]
 
+    # spec="auto:<AppName>" — documented in PRP-2213 §Scope as the agent-facing
+    # shorthand.  Route to the same path as app=<AppName>.  Codex P2 round 7.
+    if isinstance(spec, str) and spec.startswith("auto:"):
+        spec_app = spec[len("auto:"):].strip()
+        if not spec_app:
+            raise ValueError("auto: spec requires an app name (e.g. 'auto:Safari')")
+        app = spec_app
+        spec = None
+
     # app= resolution
     if app is not None and spec is None:
         center = _get_app_window_center(app)
