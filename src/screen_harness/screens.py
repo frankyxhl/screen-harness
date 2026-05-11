@@ -60,6 +60,24 @@ def _import_appkit():
     return AppKit
 
 
+def _import_avfoundation():
+    import AVFoundation
+    return AVFoundation
+
+
+def _count_real_cameras() -> int:
+    """Count physical video-input devices via AVFoundation.
+
+    Screens are *not* AVCaptureDevices (they come from AVCaptureScreenInput +
+    CGDirectDisplayID), so this gives us a structural camera count distinct
+    from FFmpeg's avfoundation indev enumeration. Used to detect the
+    Screen-Recording-permission-missing case where FFmpeg lists ONLY the
+    camera but Quartz still reports a display.
+    """
+    av = _import_avfoundation()
+    return int(len(av.AVCaptureDevice.devicesWithMediaType_("vide")))
+
+
 # ---------------------------------------------------------------------------
 # Core probe
 # ---------------------------------------------------------------------------
@@ -123,13 +141,23 @@ def probe_screens(*, ffmpeg: str = "ffmpeg") -> list[ScreenDevice]:
     display_ids: list[int] = list(display_ids_raw)[: int(count)]
     n_displays = len(display_ids)
 
-    if n_video < n_displays:
+    # Camera count derived from AVFoundation directly (structural truth)
+    # rather than inferred from `n_video - n_displays`.  Inference is unsafe:
+    # when Screen Recording permission is missing, FFmpeg silently omits
+    # screen-capture devices but Quartz still reports displays, so the
+    # inferred `camera_count` drops to 0 and the camera at AV index 0 gets
+    # bound to a real display.  Codex bot finding P1 (round 3).
+    camera_count = _count_real_cameras()
+    expected_screens = n_video - camera_count
+    if expected_screens != n_displays:
         raise ScreenProbeError(
-            f"AVFoundation reports {n_video} video device(s) but Quartz reports "
-            f"{n_displays} active display(s). Cannot determine screen mapping."
+            f"AVFoundation reports {n_video} video device(s) "
+            f"({camera_count} camera(s), {expected_screens} non-camera entries) "
+            f"but Quartz reports {n_displays} active display(s). "
+            "FFmpeg is probably missing Screen Recording permission — grant it "
+            "in System Settings → Privacy & Security → Screen & System Audio Recording."
         )
 
-    camera_count = n_video - n_displays
     main_display_id: int = quartz.CGMainDisplayID()
 
     # Build a dict from NSScreenNumber → NSScreen for backing scale lookup.

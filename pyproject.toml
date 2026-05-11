@@ -31,6 +31,7 @@ dependencies = []
 macos = [
     "pyobjc-framework-Quartz>=10.0",
     "pyobjc-framework-Cocoa>=10.0",
+    "pyobjc-framework-AVFoundation>=10.0",
 ]
 
 [project.urls]
@@ -62,4 +63,5 @@ dev = [
     # skipping in the project venv.
     "pyobjc-framework-Quartz>=10.0 ; sys_platform == 'darwin'",
     "pyobjc-framework-Cocoa>=10.0 ; sys_platform == 'darwin'",
+    "pyobjc-framework-AVFoundation>=10.0 ; sys_platform == 'darwin'",
 ]

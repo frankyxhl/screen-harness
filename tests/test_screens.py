@@ -80,6 +80,7 @@ def _probe_from_fixture(locale: str) -> list[ScreenDevice]:
     with (
         patch("screen_harness.screens._import_quartz", return_value=quartz),
         patch("screen_harness.screens._import_appkit", return_value=appkit),
+        patch("screen_harness.screens._count_real_cameras", return_value=n_video - n_displays),
         patch("screen_harness.screens.list_avfoundation_devices", return_value=(devices, None)),
     ):
         return probe_screens()
@@ -275,6 +276,7 @@ def test_resolve_screen_auto_front_app_picks_second_display():
 
     with patch("screen_harness.screens._import_quartz", return_value=quartz), \
          patch("screen_harness.screens._import_appkit", return_value=appkit), \
+         patch("screen_harness.screens._count_real_cameras", return_value=1), \
          patch(
              "screen_harness.screens.list_avfoundation_devices",
              return_value=(parse_avfoundation_devices(_two_screen_fixture()), None),
@@ -331,6 +333,7 @@ def test_probe_screens_calls_CGGetActiveDisplayList_with_out_params():
     from screen_harness.admin import parse_avfoundation_devices
     with patch("screen_harness.screens._import_quartz", return_value=quartz), \
          patch("screen_harness.screens._import_appkit", return_value=appkit), \
+         patch("screen_harness.screens._count_real_cameras", return_value=1), \
          patch(
              "screen_harness.screens.list_avfoundation_devices",
              return_value=(parse_avfoundation_devices(fixture), None),
@@ -351,3 +354,24 @@ def test_start_recording_propagates_probe_failure_no_camera_fallback():
                side_effect=ScreenProbeError("simulated probe failure")):
         with pytest.raises(ScreenProbeError, match="simulated probe failure"):
             helpers.start_recording("camera_safety_regression")
+
+
+def test_probe_screens_refuses_when_avfoundation_lists_only_cameras():
+    """Codex P1 (round 3): if FFmpeg shows only the camera (Screen Recording
+    permission missing) but Quartz reports a display, refuse with permission
+    guidance — do NOT bind the camera to the display."""
+    from screen_harness import screens as screens_mod
+    from screen_harness.admin import AVFoundationDevices
+
+    only_camera = AVFoundationDevices(
+        video=[{"index": "0", "name": "FaceTime HD Camera"}],
+        audio=[],
+    )
+    quartz = _make_quartz_mock(n_displays=1)  # Quartz sees a real display
+    appkit = _make_appkit_mock([1001])
+    with patch.object(screens_mod, "_import_quartz", return_value=quartz), \
+         patch.object(screens_mod, "_import_appkit", return_value=appkit), \
+         patch.object(screens_mod, "_count_real_cameras", return_value=1), \
+         patch.object(screens_mod, "list_avfoundation_devices", return_value=(only_camera, None)):
+        with pytest.raises(ScreenProbeError, match="Screen Recording permission"):
+            probe_screens()
