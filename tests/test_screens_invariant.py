@@ -186,7 +186,21 @@ def test_av_to_display_binding_via_coloured_square(tmp_path):
             duration=0.5,
             screen_device=screen,
         )
-        result = subprocess.run(cmd, capture_output=True, timeout=15)
+        try:
+            result = subprocess.run(cmd, capture_output=True, timeout=15)
+        except subprocess.TimeoutExpired as exc:
+            if exc.process is not None:
+                exc.process.kill()
+                exc.process.communicate()
+            win.close()
+            pytest.skip(
+                "FFmpeg avfoundation hung — likely missing Screen Recording "
+                "permission for the test process. Grant it in System Settings "
+                "→ Privacy & Security → Screen & System Audio Recording and re-run."
+            )
+        except FileNotFoundError:
+            win.close()
+            pytest.skip("FFmpeg binary not found — install FFmpeg and re-run.")
         win.close()
 
         assert result.returncode == 0, (
