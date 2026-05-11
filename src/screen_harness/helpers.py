@@ -275,11 +275,16 @@ def _wait_for_ffmpeg_start(
     import select
     import threading
 
-    deadline = time.monotonic() + timeout
+    # Codex P2 round 2 (PR #7): capture the launch-time *before* the wait
+    # loop so the timeout fallback returns Popen-time, not now+timeout.
+    # Otherwise duration metadata and any downstream timeline events are
+    # shifted by up to `timeout` seconds relative to the actual video.
+    popen_time = time.monotonic()
+    deadline = popen_time + timeout
     confirmed_at: list[float] = []
 
     if getattr(process, "stderr", None) is None:
-        return time.monotonic()
+        return popen_time
 
     # Read FFmpeg stderr in a background thread so we don't block forever
     # if FFmpeg never prints the expected line.
@@ -312,11 +317,10 @@ def _wait_for_ffmpeg_start(
     if not confirmed_at:
         logger.warning(
             "FFmpeg capture start not confirmed within %.1fs; "
-            "using Popen time as started_at (HUD timer may lead recording by up to %.0fms)",
+            "using Popen time as started_at",
             timeout,
-            timeout * 1000,
         )
-        return time.monotonic()
+        return popen_time
 
     return confirmed_at[0]
 
@@ -368,6 +372,25 @@ def _launch_hud_subprocess(
             hud_proc.wait(timeout=1)
         except Exception:
             pass
+        return None
+
+    # Codex P2 round 2 (PR #7): the child may have exited during AppKit
+    # import (e.g. missing/broken PyObjC) even though stdin.write succeeded
+    # because the pipe buffer absorbs the write before the kernel notices
+    # the dead reader.  Give the child a short window to crash, then
+    # poll() and treat early-exit as a launch failure so `hud_active` in
+    # metadata.json reflects reality.
+    time.sleep(0.15)
+    if hud_proc.poll() is not None:
+        rc = hud_proc.returncode
+        try:
+            stderr_tail = (hud_proc.stderr.read() or "").strip()[-300:] if hud_proc.stderr else ""
+        except Exception:
+            stderr_tail = ""
+        logger.warning(
+            "HUD subprocess exited during startup (rc=%s); recording continues without HUD. stderr: %s",
+            rc, stderr_tail,
+        )
         return None
 
     return hud_proc

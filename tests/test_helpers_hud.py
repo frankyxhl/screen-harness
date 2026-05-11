@@ -94,6 +94,9 @@ class TestRecordingProceedsWhenHUDLaunchFails:
         hud_proc.returncode = None
         hud_proc.stdin = MagicMock()
         hud_proc.pid = 88888
+        # `poll() is None` ⇒ subprocess still alive.  Required by the
+        # post-launch survival check (Codex P2 round 2).
+        hud_proc.poll.return_value = None
 
         def _fake_popen(cmd, **kwargs):
             cmd_str = " ".join(str(c) for c in cmd)
@@ -185,3 +188,37 @@ class TestRegionOutOfBoundsInHelpers:
                 hud=False,
             )
         assert rec_dir is not None
+
+
+    def test_hud_active_false_when_subprocess_dies_during_startup(self, isolated_state):
+        """Codex P2 round 2: if the HUD child Popen succeeds but the child
+        exits during AppKit import (poll() returns non-None), the helper
+        must detect that and write hud_active=False — not lie about a
+        process that's already dead."""
+        ffmpeg_proc = _ffmpeg_popen_mock()
+        dead_hud = MagicMock(spec=subprocess.Popen)
+        dead_hud.returncode = 1
+        dead_hud.stdin = MagicMock()
+        dead_hud.stderr = MagicMock()
+        dead_hud.stderr.read.return_value = "ModuleNotFoundError: No module named 'AppKit'"
+        dead_hud.pid = 99999
+        dead_hud.poll.return_value = 1  # already exited
+
+        def _fake_popen(cmd, **kwargs):
+            cmd_str = " ".join(str(c) for c in cmd)
+            if "screen_harness.hud" in cmd_str:
+                return dead_hud
+            return ffmpeg_proc
+
+        with patch("screen_harness.screens.probe_screens", return_value=[_FAKE_SCREEN]), \
+             patch("screen_harness.screens.resolve_screen", return_value=_FAKE_PICK), \
+             patch("screen_harness.helpers._safe_ffmpeg_version", return_value="n/a"), \
+             patch("subprocess.Popen", side_effect=_fake_popen):
+            rec_dir = _helpers.start_recording(
+                "hud-dies-test",
+                region=(100, 100, 800, 600),
+                hud=True,
+            )
+
+        metadata = json.loads((rec_dir / "metadata.json").read_text())
+        assert metadata.get("hud_active") is False
