@@ -234,16 +234,12 @@ class TestRegionOutOfBoundsInHelpers:
         assert metadata.get("hud_active") is False
 
 
-    def test_state_populated_before_ffmpeg_start_wait(self, isolated_state):
-        """Codex P2 round 4: _STATE must be populated immediately after
-        Popen so abort_active_recording works during the FFmpeg-start
-        wait window or HUD launch (where a KeyboardInterrupt would
-        otherwise orphan the FFmpeg process group)."""
+    def test_state_cleared_after_keyboard_interrupt_during_wait(self, isolated_state):
+        """Codex P2 round 6: after KeyboardInterrupt during the FFmpeg-start
+        wait, _STATE must be cleaned up and the interrupt re-raised so the
+        harness does not think a recording is still active."""
         ffmpeg_proc = _ffmpeg_popen_mock()
 
-        # Stub _wait_for_ffmpeg_start to raise — simulates an interrupt
-        # during the wait window.  _STATE must already be populated so a
-        # caller's handler can abort the recording.
         def _interrupt(*args, **kwargs):
             raise KeyboardInterrupt("user pressed Ctrl-C during ffmpeg wait")
 
@@ -259,10 +255,10 @@ class TestRegionOutOfBoundsInHelpers:
                     hud=False,
                 )
 
-        # _STATE should be populated even though start_recording raised
-        assert _helpers._STATE.is_recording is True
-        assert _helpers._STATE.process is ffmpeg_proc
-        assert _helpers._STATE.recording_dir is not None
+        # After cleanup, _STATE must be reset — the harness must not think
+        # a recording is still active.
+        assert _helpers._STATE.is_recording is False
+        assert _helpers._STATE.process is None
 
 
 @pytest.fixture()
@@ -346,3 +342,31 @@ class TestStartRecordingRaisesWhenFFmpegDiesImmediately:
         assert "rc=7" in str(exc_info.value)
         # The exception propagates out of start_recording's BaseException re-raise.
         assert exc_info.type is RecordingStartFailed
+
+    def test_state_cleared_after_recording_start_failed(self, isolated_state_real_wait):
+        """Codex P2 round 6: after RecordingStartFailed propagates, _STATE must
+        be cleared so the caller is not left thinking a recording is active."""
+        proc = MagicMock(spec=subprocess.Popen)
+        proc.pid = 55555
+        proc.returncode = 1
+        proc.poll.return_value = 1
+        proc.stdin = MagicMock()
+        proc.stdout = MagicMock()
+        proc.stderr = None
+        proc.wait.return_value = 1
+
+        with patch("screen_harness.screens.probe_screens", return_value=[_FAKE_SCREEN]), \
+             patch("screen_harness.screens.resolve_screen", return_value=_FAKE_PICK), \
+             patch("screen_harness.helpers._safe_ffmpeg_version", return_value="n/a"), \
+             patch("subprocess.Popen", return_value=proc):
+            with pytest.raises(RecordingStartFailed):
+                _helpers.start_recording(
+                    "state-cleared-test",
+                    region=(100, 100, 800, 600),
+                    hud=False,
+                )
+
+        assert _helpers._STATE.is_recording is False
+        assert _helpers._STATE.process is None
+        assert _helpers._STATE.log_handle is None
+        assert _helpers._STATE.recording_dir is None

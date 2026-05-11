@@ -244,10 +244,7 @@ def start_recording(
                 _write_json(recording_dir / "metadata.json", metadata)
         _STATE.hud_process = hud_proc
     except BaseException:
-        # Roll back to a state abort_active_recording can actually clean.
-        # `_STATE.is_recording` is already True and `_STATE.process` is set,
-        # so the outer caller's exception handler (or `screen-harness -c`'s
-        # KeyboardInterrupt handler) will SIGTERM the FFmpeg group.
+        _cleanup_failed_start(process, log_handle, hud_proc=_STATE.hud_process)
         raise
 
     # Register HUD teardown once per process (idempotent guard).
@@ -268,6 +265,50 @@ def _signal_process_group(process: subprocess.Popen, sig: int) -> None:
             process.send_signal(sig)
         except (ProcessLookupError, OSError):
             pass
+
+
+def _cleanup_failed_start(
+    process: subprocess.Popen,
+    log_handle: "IO[str] | None",
+    *,
+    hud_proc: "subprocess.Popen | None" = None,
+) -> None:
+    """Best-effort teardown after start_recording fails mid-startup.
+
+    Kills the FFmpeg process group, closes the log handle, terminates any
+    partial HUD subprocess, and resets _STATE to a clean (not-recording)
+    state.  All sub-operations are wrapped individually so a failure in one
+    step does not prevent the others from running.
+    """
+    try:
+        _signal_process_group(process, signal.SIGTERM)
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            _signal_process_group(process, signal.SIGKILL)
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                pass
+    except Exception:
+        pass
+    try:
+        if log_handle is not None:
+            log_handle.close()
+    except Exception:
+        pass
+    if hud_proc is not None:
+        try:
+            hud_proc.terminate()
+        except Exception:
+            pass
+    _STATE.is_recording = False
+    _STATE.process = None
+    _STATE.log_handle = None
+    _STATE.recording_dir = None
+    _STATE.timeline = None
+    _STATE.started_at = None
+    _STATE.hud_process = None
 
 
 # FFmpeg stderr lines that confirm avfoundation capture has begun.
