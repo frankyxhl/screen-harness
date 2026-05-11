@@ -118,8 +118,11 @@ def test_hud_pixels_never_inside_crop_region(tmp_path):
             continue
 
         img = Image.open(frame_png).convert("RGB")
+        px = img.load()
+        w_img, h_img = img.size
         hud_red_count = sum(
-            1 for r, g, b in img.getdata() if _is_hud_red(r, g, b)
+            1 for y in range(h_img) for x in range(w_img)
+            if _is_hud_red(px[x, y][0], px[x, y][1], px[x, y][2])
         )
         assert hud_red_count == 0, (
             f"Frame {fi}: found {hud_red_count} HUD-red pixels inside crop region. "

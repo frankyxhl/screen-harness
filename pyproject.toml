@@ -64,4 +64,6 @@ dev = [
     "pyobjc-framework-Quartz>=10.0 ; sys_platform == 'darwin'",
     "pyobjc-framework-Cocoa>=10.0 ; sys_platform == 'darwin'",
     "pyobjc-framework-AVFoundation>=10.0 ; sys_platform == 'darwin'",
+    # Pillow needed by HUD selftest and coloured-square invariant tests
+    "pillow>=10.0",
 ]
