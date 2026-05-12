@@ -80,6 +80,7 @@ def _probe_from_fixture(locale: str) -> list[ScreenDevice]:
     with (
         patch("screen_harness.screens._import_quartz", return_value=quartz),
         patch("screen_harness.screens._import_appkit", return_value=appkit),
+        patch("screen_harness.screens._import_avfoundation", return_value=MagicMock()),
         patch("screen_harness.screens._count_av_devices_before_screens", return_value=n_video - n_displays),
         patch("screen_harness.screens.list_avfoundation_devices", return_value=(devices, None)),
     ):
@@ -276,6 +277,7 @@ def test_resolve_screen_auto_front_app_picks_second_display():
 
     with patch("screen_harness.screens._import_quartz", return_value=quartz), \
          patch("screen_harness.screens._import_appkit", return_value=appkit), \
+         patch("screen_harness.screens._import_avfoundation", return_value=MagicMock()), \
          patch("screen_harness.screens._count_av_devices_before_screens", return_value=1), \
          patch(
              "screen_harness.screens.list_avfoundation_devices",
@@ -360,6 +362,7 @@ def test_probe_screens_calls_CGGetActiveDisplayList_with_out_params():
     from screen_harness.admin import parse_avfoundation_devices
     with patch("screen_harness.screens._import_quartz", return_value=quartz), \
          patch("screen_harness.screens._import_appkit", return_value=appkit), \
+         patch("screen_harness.screens._import_avfoundation", return_value=MagicMock()), \
          patch("screen_harness.screens._count_av_devices_before_screens", return_value=1), \
          patch(
              "screen_harness.screens.list_avfoundation_devices",
@@ -398,6 +401,7 @@ def test_probe_screens_refuses_when_avfoundation_lists_only_cameras():
     appkit = _make_appkit_mock([1001])
     with patch.object(screens_mod, "_import_quartz", return_value=quartz), \
          patch.object(screens_mod, "_import_appkit", return_value=appkit), \
+         patch.object(screens_mod, "_import_avfoundation", return_value=MagicMock()), \
          patch.object(screens_mod, "_count_av_devices_before_screens", return_value=1), \
          patch.object(screens_mod, "list_avfoundation_devices", return_value=(only_camera, None)):
         with pytest.raises(ScreenProbeError, match="Screen Recording permission"):
@@ -426,6 +430,7 @@ def test_probe_screens_handles_muxed_device_offset():
     # _count_av_devices_before_screens returns 2 (1 video + 1 muxed)
     with patch.object(screens_mod, "_import_quartz", return_value=quartz), \
          patch.object(screens_mod, "_import_appkit", return_value=appkit), \
+         patch.object(screens_mod, "_import_avfoundation", return_value=MagicMock()), \
          patch.object(screens_mod, "_count_av_devices_before_screens", return_value=2), \
          patch.object(screens_mod, "list_avfoundation_devices", return_value=(devices, None)):
         screens = probe_screens()
