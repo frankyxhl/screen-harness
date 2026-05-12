@@ -329,6 +329,27 @@ def test_probe_screens_refuses_without_pyobjc():
             probe_screens()
 
 
+def test_probe_screens_refuses_when_only_avfoundation_pyobjc_missing():
+    """Codex P2 on PR #14: when Quartz/Cocoa are installed but
+    pyobjc-framework-AVFoundation is missing, probe_screens must still
+    fail closed via ScreenProbeError — not leak ModuleNotFoundError
+    from _count_av_devices_before_screens()."""
+    from screen_harness import screens as screens_mod
+    from screen_harness.admin import AVFoundationDevices
+
+    devices = AVFoundationDevices(
+        video=[
+            {"index": "0", "name": "FaceTime HD Camera"},
+            {"index": "1", "name": "Capture screen 0"},
+        ],
+        audio=[],
+    )
+    with patch.object(screens_mod, "_import_avfoundation", side_effect=ImportError("no AVFoundation")), \
+         patch.object(screens_mod, "list_avfoundation_devices", return_value=(devices, None)):
+        with pytest.raises(ScreenProbeError, match="PyObjC is required"):
+            probe_screens()
+
+
 def test_probe_screens_calls_CGGetActiveDisplayList_with_out_params():
     """Codex P1 regression: probe_screens must call the 3-arg form and
     handle the (err, ids, count) tuple. Single-arg call raises TypeError on

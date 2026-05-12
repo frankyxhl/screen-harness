@@ -122,6 +122,7 @@ def probe_screens(*, ffmpeg: str = "ffmpeg") -> list[ScreenDevice]:
     try:
         quartz = _import_quartz()
         appkit = _import_appkit()
+        _import_avfoundation()  # validate up front; _count_av_devices_before_screens imports it again later
     except ImportError:
         # Fail closed.  Without PyObjC there is no structural signal to
         # distinguish a screen device from a camera (the "screens come last"
@@ -130,10 +131,10 @@ def probe_screens(*, ffmpeg: str = "ffmpeg") -> list[ScreenDevice]:
         # fix it; never silently risk recording the camera.
         raise ScreenProbeError(
             "PyObjC is required to safely identify screen capture devices.  "
-            "Install with `pip install 'screen-harness[macos]'` (or "
-            "`uv sync --group dev` for development).  Without PyObjC there is "
-            "no structural way to tell an AVFoundation camera apart from a "
-            "screen device, and Screen Harness refuses to guess."
+            "Install with `pip install 'screen-harness[macos]'` — the macos extra "
+            "pulls in Quartz, Cocoa, and AVFoundation (all three are required). "
+            "Without PyObjC there is no structural way to tell an AVFoundation "
+            "camera apart from a screen device, and Screen Harness refuses to guess."
         )
 
     # CGGetActiveDisplayList uses C out-parameters; PyObjC exposes it as
