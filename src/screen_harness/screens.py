@@ -1,12 +1,18 @@
 """Smart screen selection: probe AVFoundation devices and resolve a recording target.
 
-Detection algorithm is locale-independent (count-based, not name-based):
-  camera_count = N_video_devices - N_active_displays
+Detection algorithm is locale-independent (count-based, not name-based) and
+sources the camera/muxed offset from AVFoundation directly rather than
+inferring it from FFmpeg's screen count:
+
+  camera_count = len(AVCaptureDevice.devicesWithMediaType_(Video))
+               + len(AVCaptureDevice.devicesWithMediaType_(Muxed))
   screen k has av_index = camera_count + k
 
-PyObjC (Quartz + AppKit) is a soft dependency.  When absent the module degrades
-to "main display only" mode: display_id=-1 sentinel, bounds=(0,0,0,0), backing_scale=1.0.
-Auto-app resolution (app= kwarg) raises ScreenProbeError without PyObjC.
+PyObjC (Quartz + AppKit + AVFoundation) is a required dependency.  When
+absent, ``probe_screens`` and ``resolve_screen`` fail closed by raising
+``ScreenProbeError`` — without PyObjC there is no structural signal to
+tell a camera apart from a screen device, so the module refuses to guess.
+Install with ``pip install 'screen-harness[macos]'``.
 """
 
 from __future__ import annotations
@@ -28,7 +34,7 @@ logger = logging.getLogger("screen_harness")
 class ScreenDevice:
     av_index: int                        # FFmpeg avfoundation -i N
     av_name: str                         # raw locale-dependent device name
-    display_id: int                      # CGDirectDisplayID (0 = kCGNullDirectDisplay → camera-rejection sentinel; -1 = PyObjC-absent unknown but trust av_index)
+    display_id: int                      # CGDirectDisplayID (0 = kCGNullDirectDisplay → camera-rejection sentinel)
     bounds: tuple[int, int, int, int]    # x, y, w, h in global pixel coords
     is_main: bool
     backing_scale: float
@@ -98,11 +104,17 @@ def _count_av_devices_before_screens() -> int:
 def probe_screens(*, ffmpeg: str = "ffmpeg") -> list[ScreenDevice]:
     """Return a list of ScreenDevice objects for every active display.
 
-    Uses a count-based algorithm (locale-independent):
-      camera_count = N_video_devices - N_active_displays
+    Uses a count-based algorithm (locale-independent) with the offset
+    sourced from AVFoundation directly:
+
+      camera_count = len(AVCaptureDevice.devicesWithMediaType_(Video))
+                   + len(AVCaptureDevice.devicesWithMediaType_(Muxed))
       screen k  →  av_index = camera_count + k
 
-    Falls back to a single dummy main-display entry when PyObjC is absent.
+    Raises ``ScreenProbeError`` when PyObjC is unavailable, when Quartz's
+    active-display count disagrees with AVFoundation's screen-section
+    count (typically: missing Screen Recording permission), or when
+    ``CGGetActiveDisplayList`` returns a non-zero error.
     """
     av_devices, _err = list_avfoundation_devices(ffmpeg)
     n_video = len(av_devices.video)
