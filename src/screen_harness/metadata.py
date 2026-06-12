@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from .timeline import TOKYO
+from .timeline import local_now
 
 
 def update_ai_metadata(recording_dir: Path, section: str, payload: dict[str, Any]) -> dict[str, Any]:
@@ -17,7 +16,7 @@ def update_ai_metadata(recording_dir: Path, section: str, payload: dict[str, Any
     metadata.setdefault("recording_id", recording_dir.name)
     ai = metadata.setdefault("ai", {})
     section_payload = dict(payload)
-    section_payload.setdefault("updated_at", datetime.now(TOKYO).isoformat())
+    section_payload.setdefault("updated_at", local_now().isoformat())
     ai[section] = section_payload
     write_text_atomic(metadata_path, json.dumps(metadata, ensure_ascii=False, indent=2) + "\n")
     return metadata

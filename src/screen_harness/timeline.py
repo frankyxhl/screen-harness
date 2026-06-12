@@ -7,10 +7,16 @@ import re
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
 
-TOKYO = ZoneInfo("Asia/Tokyo")
+def local_now() -> datetime:
+    """Current time as a tz-aware datetime in the machine's local zone.
+
+    All persisted timestamps (timeline created_at, metadata updated_at,
+    SOP generated_at, ...) go through this so the published package never
+    assumes a specific timezone.
+    """
+    return datetime.now().astimezone()
 
 
 class TimelineError(Exception):
@@ -60,7 +66,7 @@ class Timeline:
         data = {
             "recording_id": recording_id,
             "title": title,
-            "created_at": datetime.now(TOKYO).isoformat(),
+            "created_at": local_now().isoformat(),
             "source_video": source_video,
             "events": [],
         }
@@ -82,7 +88,7 @@ class Timeline:
     @staticmethod
     def recording_id(name: str) -> str:
         slug = re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_") or "recording"
-        return f"{slug}_{datetime.now(TOKYO).strftime('%Y%m%d_%H%M%S')}"
+        return f"{slug}_{local_now().strftime('%Y%m%d_%H%M%S')}"
 
     def add_event(self, event_type: str, *, t: float, **payload) -> dict:
         event = {"id": f"evt_{len(self.data['events']) + 1:03d}", "t": round(float(t), 3), "type": event_type}

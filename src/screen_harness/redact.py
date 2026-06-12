@@ -5,11 +5,10 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 
 from .metadata import update_ai_metadata, write_text_atomic
-from .timeline import TOKYO, Timeline
+from .timeline import Timeline, local_now
 
 
 EMAIL_RE = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b")
@@ -51,7 +50,7 @@ def scan_redactions(recording_dir: Path) -> RedactionScanOutputs:
     output = recording_dir / "redaction_suggestions.json"
     payload = {
         "recording_id": recording_dir.name,
-        "created_at": datetime.now(TOKYO).isoformat(),
+        "created_at": local_now().isoformat(),
         "suggestions": suggestions,
     }
     write_text_atomic(output, json.dumps(payload, ensure_ascii=False, indent=2) + "\n")

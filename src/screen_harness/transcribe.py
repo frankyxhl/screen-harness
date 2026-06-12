@@ -7,13 +7,12 @@ import re
 import shutil
 import subprocess
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 from typing import Protocol
 
 from .admin import ffprobe_binary
 from .metadata import update_ai_metadata, write_text_atomic
-from .timeline import TOKYO
+from .timeline import local_now
 
 
 @dataclass(frozen=True)
@@ -130,7 +129,7 @@ def transcribe_recording(recording_dir: Path, *, provider_name: str = "manual") 
 
     payload = {
         "recording_id": recording_dir.name,
-        "created_at": datetime.now(TOKYO).isoformat(),
+        "created_at": local_now().isoformat(),
         "provider": provider.name,
         "model": provider.model,
         "source": _relative(provider_result.source, recording_dir),
