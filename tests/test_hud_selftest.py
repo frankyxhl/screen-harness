@@ -7,8 +7,10 @@ a WindowServer session.  They are skipped cleanly on Linux CI.
 from __future__ import annotations
 
 import platform
+import shutil
 import subprocess
 import time
+from pathlib import Path
 
 import pytest
 
@@ -129,6 +131,17 @@ def test_hud_pixels_never_inside_crop_region(tmp_path):
             xs = [p[0] for p in red_pixels]
             ys = [p[1] for p in red_pixels]
             from screen_harness.screens import probe_screens
+
+            # Preserve visual evidence for CI artifact upload: the offending
+            # cropped frame plus a full-desktop screenshot showing where the
+            # HUD panels actually sit.
+            evidence = Path.cwd() / "hud-selftest-failure"
+            evidence.mkdir(exist_ok=True)
+            shutil.copy(frame_png, evidence / f"frame_{fi}.png")
+            subprocess.run(
+                ["screencapture", "-x", str(evidence / "desktop.png")],
+                capture_output=True, timeout=10,
+            )
 
             geometry = [
                 f"av_index={s.av_index} bounds={s.bounds} "
