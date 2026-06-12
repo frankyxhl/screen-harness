@@ -759,6 +759,13 @@ def render(recording_dir: Path | None = None, *, template: str | None = None) ->
     )
     has_audio = _probe_audio(raw)
     if has_intro or has_outro:
+        if not canvas.get("fps"):
+            raise RuntimeError(
+                f"could not determine frame rate for {raw}; intro/outro card "
+                "clips are generated at the canvas rate — ensure ffprobe is "
+                "available or that metadata.json carries a 'canvas' block "
+                "with 'fps'"
+            )
         clips: list[Path] = []
         if has_intro:
             intro_video = _render_card_clip(
@@ -953,9 +960,10 @@ def _render_canvas(directory: Path, raw: Path) -> dict:
     ffprobe of the raw clip. Raises `RuntimeError` if neither source yields a
     valid canvas — silently defaulting to (1920, 1080, 30) would mis-align
     every overlay coordinate when the actual raw is a cropped region (e.g.
-    Safari at 1920x960 from `region=`). The same applies to fps: intro/outro
-    card clips are generated at the canvas rate, so a guessed 30 would
-    silently mis-time against a 24/60 fps raw clip.
+    Safari at 1920x960 from `region=`). fps is never guessed either — a
+    guessed 30 would mis-time intro/outro cards against a 24/60 fps raw clip
+    — but an unresolvable rate returns None rather than raising, because only
+    the card-clip path consumes it; render() raises at that branch.
     """
     metadata_path = Path(directory) / "metadata.json"
     canvas: dict | None = None
@@ -979,15 +987,13 @@ def _render_canvas(directory: Path, raw: Path) -> dict:
         probed = _probe_canvas(raw)
         if probed and probed.get("fps"):
             canvas = {**canvas, "fps": probed["fps"]}
-    if not canvas.get("fps"):
-        raise RuntimeError(
-            f"could not determine frame rate for {raw}; ensure ffprobe is "
-            "available or that metadata.json carries a 'canvas' block with 'fps'"
-        )
     return {
         "width": int(canvas["width"]),
         "height": int(canvas["height"]),
-        "fps": float(canvas["fps"]),
+        # None when unresolvable — only intro/outro card clips consume the
+        # rate, so render() raises there instead of blocking main-only
+        # renders (Codex P2 on PR #22).
+        "fps": float(canvas["fps"]) if canvas.get("fps") else None,
     }
 
 
