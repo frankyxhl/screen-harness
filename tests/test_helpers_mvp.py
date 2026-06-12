@@ -294,6 +294,105 @@ def test_render_raises_when_raw_recording_missing(monkeypatch, tmp_path):
         helpers.render(template="training")
 
 
+def test_render_canvas_recovers_fps_from_probe_when_metadata_lacks_it(tmp_path):
+    """metadata canvas without fps must not silently default to 30 — a fresh
+    ffprobe of the raw clip knows the real rate (e.g. 60 fps ProMotion)."""
+    recording = tmp_path / "demo"
+    recording.mkdir()
+    raw = recording / "raw.mp4"
+    raw.write_bytes(b"video")
+    (recording / "metadata.json").write_text('{"canvas": {"width": 1920, "height": 1080}}')
+
+    with patch(
+        "screen_harness.helpers._probe_canvas",
+        return_value={"width": 1920, "height": 1080, "fps": 60.0},
+    ):
+        canvas = helpers._render_canvas(recording, raw)
+
+    assert canvas["fps"] == 60.0
+
+
+def test_render_canvas_returns_none_fps_when_unresolvable(tmp_path):
+    """No fps from metadata or ffprobe → fps None, not a guessed 30 and not
+    an eager raise: only intro/outro card clips consume the rate, so the
+    decision belongs to render() (Codex P2 on PR #22)."""
+    recording = tmp_path / "demo"
+    recording.mkdir()
+    raw = recording / "raw.mp4"
+    raw.write_bytes(b"video")
+    (recording / "metadata.json").write_text('{"canvas": {"width": 1920, "height": 1080}}')
+
+    with patch("screen_harness.helpers._probe_canvas", return_value=None):
+        canvas = helpers._render_canvas(recording, raw)
+
+    assert canvas["fps"] is None
+
+
+def _seed_recording_without_fps(tmp_path, *, intro=None):
+    recording = tmp_path / "recordings" / "demo"
+    recording.mkdir(parents=True)
+    (recording / "raw.mp4").write_bytes(b"video")
+    (recording / "metadata.json").write_text('{"canvas": {"width": 1920, "height": 1080}}')
+    helpers.Timeline.create(
+        path=recording / "timeline.json", recording_id="demo", title="Demo",
+        source_video="raw.mp4", intro=intro,
+    )
+    return recording
+
+
+def test_render_main_only_proceeds_without_fps(monkeypatch, tmp_path):
+    """A timeline with no intro/outro never generates card clips, so an
+    unresolvable fps must not block the render (older recordings)."""
+    recording = _seed_recording_without_fps(tmp_path)
+    monkeypatch.setattr(helpers, "_STATE", helpers.RuntimeState(root=tmp_path, recording_dir=recording))
+
+    outputs = CaptionOutputs(srt=recording / "sop.srt", ass=recording / "sop.ass", markdown=recording / "sop.md")
+    with patch("screen_harness.helpers._probe_canvas", return_value=None), \
+         patch("screen_harness.helpers.generate_caption_assets", return_value=outputs), \
+         patch("screen_harness.helpers.render_video") as render_video, \
+         patch("screen_harness.helpers._probe_audio", return_value=False):
+        render_video.return_value.returncode = 0
+        render_video.return_value.stdout = ""
+
+        assert helpers.render(template="training") == recording / "final.mp4"
+
+
+def test_render_with_intro_raises_when_fps_unresolvable(monkeypatch, tmp_path):
+    """Intro card clips are generated at the canvas rate — refuse to guess."""
+    recording = _seed_recording_without_fps(
+        tmp_path, intro={"title": "Demo intro", "countdown": 5}
+    )
+    monkeypatch.setattr(helpers, "_STATE", helpers.RuntimeState(root=tmp_path, recording_dir=recording))
+
+    outputs = CaptionOutputs(
+        srt=recording / "sop.srt", ass=recording / "sop.ass",
+        markdown=recording / "sop.md", intro_ass=recording / "intro.ass",
+    )
+    with patch("screen_harness.helpers._probe_canvas", return_value=None), \
+         patch("screen_harness.helpers.generate_caption_assets", return_value=outputs), \
+         patch("screen_harness.helpers._probe_audio", return_value=False):
+        with pytest.raises(RuntimeError, match="frame rate"):
+            helpers.render(template="training")
+
+
+def test_render_canvas_metadata_fps_wins_without_probing(tmp_path):
+    recording = tmp_path / "demo"
+    recording.mkdir()
+    raw = recording / "raw.mp4"
+    raw.write_bytes(b"video")
+    (recording / "metadata.json").write_text(
+        '{"canvas": {"width": 1920, "height": 1080, "fps": 24.0}}'
+    )
+
+    with patch(
+        "screen_harness.helpers._probe_canvas",
+        side_effect=AssertionError("must not probe when metadata is complete"),
+    ):
+        canvas = helpers._render_canvas(recording, raw)
+
+    assert canvas["fps"] == 24.0
+
+
 def test_probe_canvas_returns_none_when_ffprobe_missing(tmp_path):
     video = tmp_path / "raw.mp4"
     video.write_bytes(b"not really video")
