@@ -137,8 +137,9 @@ def _looks_like_desktop_not_rendered(mean_rgb):
 @pytest.mark.macos
 @pytest.mark.skipif(
     os.environ.get("CI") == "true",
-    reason="shared CI runner: NSWindow rendering fidelity is unreliable "
-    "(near-white frames bypass the all-black/desktop heuristics)",
+    reason="hosted CI runners pop the macOS TCC screen-recording consent dialog "
+    "over the screen centre, so the sampled block sees the light-grey dialog "
+    "body instead of the coloured window (evidence in issue #17)",
 )
 def test_av_to_display_binding_via_coloured_square(tmp_path):
     """AV↔CGDirectDisplayID binding: draw a colour on each screen, capture,

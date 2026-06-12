@@ -87,6 +87,14 @@ jobs:
         # no Screen Recording permission) stay visible in the job log.
         run: uv run --python 3.14 pytest -q -ra
 
+      - name: Upload HUD selftest failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: hud-selftest-failure
+          path: hud-selftest-failure/
+          if-no-files-found: ignore
+
   alfred:
     name: Validate Alfred docs
     runs-on: ubuntu-latest
