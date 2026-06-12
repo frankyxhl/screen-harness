@@ -6,7 +6,6 @@ a WindowServer session.  They are skipped cleanly on Linux CI.
 
 from __future__ import annotations
 
-import os
 import platform
 import subprocess
 import time
@@ -63,12 +62,6 @@ def _is_hud_red(r: int, g: int, b: int) -> bool:
 
 
 @pytest.mark.macos
-@pytest.mark.xfail(
-    os.environ.get("CI") == "true",
-    reason="HUD panels bleed into crop region on non-Retina (1x) CI display — "
-    "suspected points-vs-pixels scale bug, see issue #17",
-    strict=False,
-)
 def test_hud_pixels_never_inside_crop_region(tmp_path):
     """HUD panels must not appear inside the crop region.
 
@@ -125,14 +118,33 @@ def test_hud_pixels_never_inside_crop_region(tmp_path):
         img = Image.open(frame_png).convert("RGB")
         px = img.load()
         w_img, h_img = img.size
-        hud_red_count = sum(
-            1 for y in range(h_img) for x in range(w_img)
+        red_pixels = [
+            (x, y)
+            for y in range(h_img) for x in range(w_img)
             if _is_hud_red(px[x, y][0], px[x, y][1], px[x, y][2])
-        )
-        assert hud_red_count == 0, (
-            f"Frame {fi}: found {hud_red_count} HUD-red pixels inside crop region. "
-            "HUD coordinate bug — panels are bleeding into the recorded area."
-        )
+        ]
+        if red_pixels:
+            # Diagnostics for issue #17: the bounding box pinpoints WHICH
+            # HUD panel bleeds (stroke edge vs pill corner) and from where.
+            xs = [p[0] for p in red_pixels]
+            ys = [p[1] for p in red_pixels]
+            from screen_harness.screens import probe_screens
+
+            geometry = [
+                f"av_index={s.av_index} bounds={s.bounds} "
+                f"appkit_origin={s.appkit_origin} appkit_size={s.appkit_size} "
+                f"backing_scale={s.backing_scale}"
+                for s in probe_screens()
+            ]
+            raise AssertionError(
+                f"Frame {fi}: found {len(red_pixels)} HUD-red pixels inside crop "
+                f"region. HUD coordinate bug — panels are bleeding into the "
+                f"recorded area.\n"
+                f"  captured frame size: {w_img}x{h_img} (crop was 800x600 at "
+                f"(100,100))\n"
+                f"  red pixel bbox: x={min(xs)}..{max(xs)}, y={min(ys)}..{max(ys)}\n"
+                f"  screens: {geometry}"
+            )
 
 
 # NOTE: A previous `test_hud_on_vs_off_frame_hashes_match_outside_bands`
