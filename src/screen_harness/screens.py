@@ -265,7 +265,7 @@ def resolve_screen(
             )
             return PickedScreen(
                 device=_main(),
-                reason=f"auto-no-app-no-front-window:fallback-main",
+                reason="auto-no-app-no-front-window:fallback-main",
             )
         cx, cy = center
         for s in screens:
@@ -278,7 +278,7 @@ def resolve_screen(
             "falling back to main display.",
             app, cx, cy,
         )
-        return PickedScreen(device=_main(), reason=f"auto-no-app-no-front-window:fallback-main")
+        return PickedScreen(device=_main(), reason="auto-no-app-no-front-window:fallback-main")
 
     # spec=None, no app → default main
     if spec is None:

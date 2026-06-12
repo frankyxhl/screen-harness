@@ -217,7 +217,6 @@ def test_picked_screen_json_schema_roundtrip():
         assert key in blob, f"missing key: {key}"
 
     # Validate types for each property
-    props = schema["properties"]
     assert isinstance(blob["av_index"], int)
     assert isinstance(blob["av_name"], str)
     assert isinstance(blob["display_id"], int)
@@ -264,7 +263,6 @@ def test_get_app_window_center_not_running_returns_none():
 
 def test_resolve_screen_auto_front_app_picks_second_display():
     """auto:<App> happy path: window centre inside second screen's bounds → pick screen 2."""
-    fixture = (FIXTURES_DIR / "en.txt").read_text()
     quartz = _make_quartz_mock(n_displays=2)
     # Display 0 at (0,0,1920,1080); display 1 at (1920,0,1920,1080) (side-by-side).
     quartz.CGDisplayBounds.side_effect = lambda did: {

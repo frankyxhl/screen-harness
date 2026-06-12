@@ -7,7 +7,6 @@ pixel coordinates (top-left origin) to AppKit point coordinates
 
 from __future__ import annotations
 
-import pytest
 
 from screen_harness.hud import compute_frame_stroke_rects, transform_region_to_appkit
 from screen_harness.screens import ScreenDevice

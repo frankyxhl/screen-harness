@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import json
 import subprocess
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -72,8 +71,6 @@ class TestRecordingProceedsWhenHUDLaunchFails:
     def test_recording_proceeds_when_hud_launch_fails(self, isolated_state):
         """start_recording completes and metadata has hud_active=False when
         the HUD subprocess cannot be launched (Popen raises OSError)."""
-        tmp_path = isolated_state
-
         ffmpeg_proc = _ffmpeg_popen_mock()
 
         def _fake_popen(cmd, **kwargs):
@@ -286,7 +283,6 @@ class TestTightCropDisablesHUD:
         """region=(10,10,1900,1060) on 1920×1080 screen — pick_rec_pill_anchor
         returns 'none', so HUD must be suppressed (hud_active=False) and the
         'too close to screen edges' warning must be printed."""
-        tmp_path = isolated_state
         ffmpeg_proc = _ffmpeg_popen_mock()
         hud_launched = []
 

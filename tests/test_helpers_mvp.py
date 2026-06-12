@@ -3,6 +3,7 @@ import pytest
 from unittest.mock import patch
 
 from screen_harness import helpers
+from screen_harness.captions import CaptionOutputs
 from screen_harness.helpers import load_agent_helpers
 
 
@@ -253,7 +254,7 @@ def test_render_passes_template_to_caption_generation(monkeypatch, tmp_path):
     state = helpers.RuntimeState(root=tmp_path, recording_dir=recording)
     monkeypatch.setattr(helpers, "_STATE", state)
 
-    outputs = helpers.CaptionOutputs(srt=recording / "sop.srt", ass=recording / "sop.ass", markdown=recording / "sop.md")
+    outputs = CaptionOutputs(srt=recording / "sop.srt", ass=recording / "sop.ass", markdown=recording / "sop.md")
     with patch("screen_harness.helpers.generate_caption_assets", return_value=outputs) as captions, \
          patch("screen_harness.helpers.render_video") as render_video, \
          patch("screen_harness.helpers._probe_audio", return_value=False):

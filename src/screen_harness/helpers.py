@@ -18,10 +18,8 @@ from pathlib import Path
 from typing import IO
 
 
-logger = logging.getLogger("screen_harness")
-
 from .admin import ffmpeg_version, ffprobe_binary
-from .captions import CaptionOutputs, generate_caption_assets
+from .captions import generate_caption_assets
 from .metadata import write_text_atomic
 from .project import init_project
 from .redact import scan_redactions as scan_recording_redactions
@@ -31,6 +29,8 @@ from .sop import generate_ai_sop as generate_ai_sop_assets
 from .templates import DEFAULT_OUTRO_TITLE, get_template
 from .timeline import TOKYO, Timeline
 from .transcribe import transcribe_recording
+
+logger = logging.getLogger("screen_harness")
 
 
 @dataclass
@@ -112,7 +112,7 @@ def start_recording(
     ffmpeg_path = shutil.which("ffmpeg") or "ffmpeg"
 
     # Resolve the recording screen via smart selection.
-    from .screens import ScreenProbeError, probe_screens, resolve_screen
+    from .screens import probe_screens, resolve_screen
     from dataclasses import asdict as _asdict
 
     if _STATE.screen_inventory is None:

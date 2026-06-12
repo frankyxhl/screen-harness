@@ -48,6 +48,14 @@ package-dir = {"" = "src"}
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.ruff]
+src = ["src"]
+
+[tool.ruff.lint.per-file-ignores]
+# Recording scripts execute inside the `screen-harness -c` namespace where
+# helpers are pre-imported at runtime — names are not defined in the file.
+"examples/*" = ["F821"]
+
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
