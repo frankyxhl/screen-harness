@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import importlib.util
 import sys
-import tempfile
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).parent.parent
@@ -48,27 +47,25 @@ def main(repo_root: Path | None = None) -> int:
 
     drifted: list[str] = []
 
-    with tempfile.TemporaryDirectory() as tmpdir:
-        tmp = Path(tmpdir)
-        for target, output_path in targets.items():
-            tail_path = tails_dir / f"{target}.md"
-            tail_text = sync.canonicalise(tail_path.read_text(encoding="utf-8"))
-            tail_fm, tail_body = sync.parse_tail(tail_path)
+    for target, output_path in targets.items():
+        tail_path = tails_dir / f"{target}.md"
+        tail_text = sync.canonicalise(tail_path.read_text(encoding="utf-8"))
+        tail_fm, tail_body = sync.parse_tail(tail_path)
 
-            source_text = agents_text + tail_text
-            source_hash = sync.compute_source_hash(source_text)
+        source_text = agents_text + tail_text
+        source_hash = sync.compute_source_hash(source_text)
 
-            expected = sync.render_target(
-                target, agents_text, tail_fm, tail_body, source_hash
-            )
+        expected = sync.render_target(
+            target, agents_text, tail_fm, tail_body, source_hash
+        )
 
-            if output_path.exists():
-                actual = output_path.read_text(encoding="utf-8")
-            else:
-                actual = None
+        if output_path.exists():
+            actual = output_path.read_text(encoding="utf-8")
+        else:
+            actual = None
 
-            if actual != expected:
-                drifted.append(str(output_path.relative_to(root)))
+        if actual != expected:
+            drifted.append(str(output_path.relative_to(root)))
 
     if drifted:
         print("Agent-docs drift detected in:", file=sys.stderr)

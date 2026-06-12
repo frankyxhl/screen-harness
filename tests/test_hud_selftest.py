@@ -6,11 +6,9 @@ a WindowServer session.  They are skipped cleanly on Linux CI.
 
 from __future__ import annotations
 
-import hashlib
 import os
 import platform
 import subprocess
-import sys
 import time
 
 import pytest

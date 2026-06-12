@@ -12,9 +12,7 @@ from __future__ import annotations
 
 import io
 import time
-import threading
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 import subprocess
 
 import pytest
@@ -40,7 +38,7 @@ def _make_proc(*, poll_return=None, stderr_bytes: bytes | None = None):
 
     if stderr_bytes is not None:
         # Simulate a binary pipe that yields lines when iterated.
-        lines = [l + b"\n" for l in stderr_bytes.split(b"\n") if l]
+        lines = [chunk + b"\n" for chunk in stderr_bytes.split(b"\n") if chunk]
         proc.stderr = iter(lines)
         # Also support read() for the non-blocking stderr tail in HARD FAIL path.
         proc.stderr = io.BytesIO(stderr_bytes)

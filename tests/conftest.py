@@ -17,7 +17,6 @@ from unittest.mock import patch
 
 import pytest
 
-from screen_harness import helpers as _helpers
 from screen_harness.screens import PickedScreen, ScreenDevice
 
 

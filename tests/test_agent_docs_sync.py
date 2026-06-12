@@ -13,7 +13,6 @@ Fixture layout:
 from __future__ import annotations
 
 import importlib.util
-import sys
 from pathlib import Path
 
 import pytest
@@ -132,7 +131,7 @@ def test_render_target_skill_emits_sorted_yaml_frontmatter():
     fm_start = lines.index("---")
     fm_end = lines.index("---", fm_start + 1)
     fm_lines = lines[fm_start + 1:fm_end]
-    keys = [l.split(":")[0].strip() for l in fm_lines]
+    keys = [line.split(":")[0].strip() for line in fm_lines]
     assert keys == sorted(keys), f"YAML keys not sorted: {keys}"
 
 

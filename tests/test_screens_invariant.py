@@ -153,10 +153,8 @@ def test_av_to_display_binding_via_coloured_square(tmp_path):
 
     import math
     import subprocess
-    import tempfile
 
     import AppKit
-    import Quartz
 
     from screen_harness.recorder import build_screen_record_command
 
@@ -177,9 +175,10 @@ def test_av_to_display_binding_via_coloured_square(tmp_path):
     # Use sRGB colour (Codex P1 round 1 on PR #7: calibratedRGB drifts the
     # captured pixel enough to fall outside the predicate box on some display
     # profiles).
-    _color_for = lambda rgb: AppKit.NSColor.colorWithSRGBRed_green_blue_alpha_(
-        rgb[0] / 255.0, rgb[1] / 255.0, rgb[2] / 255.0, 1.0
-    )
+    def _color_for(rgb):
+        return AppKit.NSColor.colorWithSRGBRed_green_blue_alpha_(
+            rgb[0] / 255.0, rgb[1] / 255.0, rgb[2] / 255.0, 1.0
+        )
 
     # Draw coloured full-screen window on each display, record 0.5s, verify.
     for k, screen in enumerate(screens):

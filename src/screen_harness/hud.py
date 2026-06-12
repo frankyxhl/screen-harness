@@ -31,7 +31,6 @@ from __future__ import annotations
 import json
 import logging
 import time
-from typing import Literal, NamedTuple
 
 from .screens import ScreenDevice
 
@@ -503,7 +502,6 @@ def run_hud_subprocess() -> None:
     NSApplication = ak["NSApplication"]
     NSApplicationActivationPolicyAccessory = ak["NSApplicationActivationPolicyAccessory"]
     NSTimer = ak["NSTimer"]
-    NSMakeRect = ak["NSMakeRect"]
     AppHelper = ak["AppHelper"]
 
     app = NSApplication.sharedApplication()
