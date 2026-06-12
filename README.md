@@ -26,6 +26,21 @@ The visual system uses Color Hunt's "DevDark" palette: `#222831` charcoal, `#393
 
 ## Install
 
+FFmpeg first (capture **and** render):
+
+```bash
+brew install ffmpeg ffmpeg-full
+```
+
+`ffmpeg` provides AVFoundation screen capture; keg-only `ffmpeg-full` provides
+the `subtitles`/`ass` filters the renderer needs — Homebrew's regular `ffmpeg`
+8.x no longer bundles libass. The renderer auto-prefers
+`/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg` when present; point
+`SCREEN_HARNESS_FFMPEG` at any other libass-enabled build instead if you have
+one. Details and troubleshooting: [install.md](install.md).
+
+Then:
+
 ```bash
 uv sync
 uv run screen-harness init

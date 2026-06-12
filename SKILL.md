@@ -3,7 +3,7 @@ description: Record macOS screen workflows and turn them into SOP videos and Mar
 name: screen-harness
 ---
 <!-- GENERATED FROM AGENTS.md + scripts/agent-docs-tails/skill.md
-     Source SHA256: 8ad7949baa905f451aa069653471ef58a6c141a3ed6b5f5e9fc1bc4130cf12a9
+     Source SHA256: 59f06eebc22c6023f0ed130f8e0e13a79b95ec63fba8e8a523b4f4846719d1be
      Edit AGENTS.md (or the tail file) and run scripts/sync_agent_docs.py. -->
 
 See [AGENTS.md](AGENTS.md) for full agent instructions.

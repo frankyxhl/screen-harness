@@ -1,5 +1,5 @@
 <!-- GENERATED FROM AGENTS.md + scripts/agent-docs-tails/copilot.md
-     Source SHA256: 3c4fe506fbfa6f865e41a9e4dc7370ffe74bc119cf88313710b7406ff3b481bb
+     Source SHA256: f65797809c3760aec7845d57a9d6cb2eee9825897b29be74aeef78274377f5d0
      Edit AGENTS.md (or the tail file) and run scripts/sync_agent_docs.py. -->
 # Screen Harness — Agent Instructions
 
@@ -30,10 +30,15 @@ explicitly out of MVP scope.
 One-time setup per machine:
 
 ```bash
+brew install ffmpeg ffmpeg-full      # capture (avfoundation) + render (libass filters)
 uv sync                              # install dependencies into .venv
 uv run screen-harness init           # create recordings/, agent-workspace/, etc.
 uv run screen-harness doctor         # verify ffmpeg + AVFoundation
 ```
+
+Homebrew's regular `ffmpeg` 8.x no longer bundles libass, so rendering needs
+the keg-only `ffmpeg-full` (auto-preferred at
+`/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg`, or set `SCREEN_HARNESS_FFMPEG`).
 
 `doctor` should print at least:
 

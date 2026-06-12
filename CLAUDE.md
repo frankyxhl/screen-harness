@@ -1,5 +1,5 @@
 <!-- GENERATED FROM AGENTS.md + scripts/agent-docs-tails/claude.md
-     Source SHA256: f7fc1846027b4d86c5c6c1189281f0eb5376bf1a491cec5231a2637bdba894a0
+     Source SHA256: ee38828a427c9a5e4415f022f5f4f7edf5f8d355437620a83bf7ba4167a27899
      Edit AGENTS.md (or the tail file) and run scripts/sync_agent_docs.py. -->
 # Screen Harness — Agent Instructions
 
@@ -30,10 +30,15 @@ explicitly out of MVP scope.
 One-time setup per machine:
 
 ```bash
+brew install ffmpeg ffmpeg-full      # capture (avfoundation) + render (libass filters)
 uv sync                              # install dependencies into .venv
 uv run screen-harness init           # create recordings/, agent-workspace/, etc.
 uv run screen-harness doctor         # verify ffmpeg + AVFoundation
 ```
+
+Homebrew's regular `ffmpeg` 8.x no longer bundles libass, so rendering needs
+the keg-only `ffmpeg-full` (auto-preferred at
+`/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg`, or set `SCREEN_HARNESS_FFMPEG`).
 
 `doctor` should print at least:
 
