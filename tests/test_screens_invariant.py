@@ -5,6 +5,7 @@ Skipped on non-macOS or when PyObjC is absent.
 
 from __future__ import annotations
 
+import os
 import platform
 
 import pytest
@@ -26,13 +27,29 @@ macos_only = pytest.mark.skipif(
 )
 
 
+def _probe_screens_or_skip_on_ci():
+    """Live probe; on hosted CI a missing Screen Recording TCC grant skips.
+
+    Locally a permission failure must stay a hard error — it is exactly the
+    misconfiguration these invariant tests exist to surface. Hosted runners
+    currently grant screen capture (verified on macos-latest, PR #16), but a
+    future runner-image TCC tightening must degrade to a skip, not block CI.
+    """
+    from screen_harness.screens import ScreenProbeError, probe_screens
+
+    try:
+        return probe_screens()
+    except ScreenProbeError as exc:
+        if os.environ.get("CI") == "true" and "Screen Recording permission" in str(exc):
+            pytest.skip(f"hosted CI runner lacks Screen Recording permission: {exc}")
+        raise
+
+
 @pytest.mark.macos
 @macos_only
 def test_probe_screens_real_host_at_least_one_screen():
     """On a real Mac, probe returns at least one screen device."""
-    from screen_harness.screens import probe_screens
-
-    screens = probe_screens()
+    screens = _probe_screens_or_skip_on_ci()
     assert len(screens) >= 1, "Expected at least one screen device from real host"
     if _pyobjc_present():
         for s in screens:
@@ -43,9 +60,7 @@ def test_probe_screens_real_host_at_least_one_screen():
 @macos_only
 def test_probe_screens_no_cameras_returned():
     """probe_screens() must return only screen devices, never cameras."""
-    from screen_harness.screens import probe_screens
-
-    screens = probe_screens()
+    screens = _probe_screens_or_skip_on_ci()
     for s in screens:
         if _pyobjc_present():
             assert s.display_id != 0, (
@@ -120,6 +135,11 @@ def _looks_like_desktop_not_rendered(mean_rgb):
 
 
 @pytest.mark.macos
+@pytest.mark.skipif(
+    os.environ.get("CI") == "true",
+    reason="shared CI runner: NSWindow rendering fidelity is unreliable "
+    "(near-white frames bypass the all-black/desktop heuristics)",
+)
 def test_av_to_display_binding_via_coloured_square(tmp_path):
     """AV↔CGDirectDisplayID binding: draw a colour on each screen, capture,
     verify mean centre-block RGB matches within Euclidean distance ≤ 10.
@@ -138,10 +158,9 @@ def test_av_to_display_binding_via_coloured_square(tmp_path):
     import AppKit
     import Quartz
 
-    from screen_harness.screens import probe_screens
     from screen_harness.recorder import build_screen_record_command
 
-    screens = probe_screens()
+    screens = _probe_screens_or_skip_on_ci()
     if len(screens) < 1:
         pytest.skip("no screens returned by probe_screens()")
 
