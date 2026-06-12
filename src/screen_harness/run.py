@@ -14,6 +14,7 @@ from .redact import scan_redactions
 from .project import DEFAULT_AGENT_HELPERS, init_project
 from .render import render_smoke
 from .sop import generate_ai_sop
+from .timeline import TimelineError
 from .transcribe import transcribe_recording
 
 
@@ -36,6 +37,15 @@ Commands:
 
 
 def main() -> None:
+    try:
+        _dispatch()
+    except TimelineError as exc:
+        # timeline.json is hand-editable; a validation failure is a user
+        # input problem, not a crash — print one line, no traceback.
+        raise SystemExit(str(exc)) from exc
+
+
+def _dispatch() -> None:
     args = sys.argv[1:]
     if not args or args[0] in {"-h", "--help"}:
         print(HELP)

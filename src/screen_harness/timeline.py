@@ -13,6 +13,43 @@ from zoneinfo import ZoneInfo
 TOKYO = ZoneInfo("Asia/Tokyo")
 
 
+class TimelineError(Exception):
+    """Raised when timeline.json cannot be loaded or fails validation.
+
+    timeline.json is documented as hand-editable ("edit timeline.json and
+    re-render"), so load failures must point at the offending field instead
+    of surfacing later as a KeyError mid-render.
+    """
+
+
+def _validate_timeline_data(data: object, path: Path) -> dict:
+    if not isinstance(data, dict):
+        raise TimelineError(
+            f"{path}: expected a top-level JSON object, got {type(data).__name__}"
+        )
+    if "events" not in data:
+        raise TimelineError(f"{path}: missing required key 'events'")
+    events = data["events"]
+    if not isinstance(events, list):
+        raise TimelineError(
+            f"{path}: 'events' must be a list, got {type(events).__name__}"
+        )
+    for i, event in enumerate(events):
+        if not isinstance(event, dict):
+            raise TimelineError(
+                f"{path}: events[{i}] must be an object, got {type(event).__name__}"
+            )
+        if not isinstance(event.get("type"), str):
+            raise TimelineError(f"{path}: events[{i}] is missing a string 'type'")
+        t = event.get("t")
+        if isinstance(t, bool) or not isinstance(t, (int, float)):
+            raise TimelineError(
+                f"{path}: events[{i}] ({event.get('id', 'no id')}) needs a numeric 't', "
+                f"got {t!r}"
+            )
+    return data
+
+
 @dataclass
 class Timeline:
     path: Path
@@ -36,7 +73,11 @@ class Timeline:
     @classmethod
     def load(cls, path: Path) -> "Timeline":
         path = Path(path)
-        return cls(path, json.loads(path.read_text()))
+        try:
+            data = json.loads(path.read_text())
+        except json.JSONDecodeError as exc:
+            raise TimelineError(f"{path}: not valid JSON — {exc}") from exc
+        return cls(path, _validate_timeline_data(data, path))
 
     @staticmethod
     def recording_id(name: str) -> str:

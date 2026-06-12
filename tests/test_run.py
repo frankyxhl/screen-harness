@@ -224,3 +224,20 @@ def test_recording_dir_accepts_existing_relative_path(tmp_path, monkeypatch):
     nested = tmp_path / "alt" / "demo"
     nested.mkdir(parents=True)
     assert run._recording_dir(str(nested)) == nested
+
+
+def test_render_with_corrupt_timeline_exits_cleanly(tmp_path, monkeypatch):
+    """A hand-edited, broken timeline.json must produce a one-line error
+    (SystemExit), not a JSONDecodeError traceback."""
+    monkeypatch.chdir(tmp_path)
+    recording = tmp_path / "recordings" / "demo"
+    recording.mkdir(parents=True)
+    (recording / "raw.mp4").write_bytes(b"video")
+    (recording / "metadata.json").write_text(
+        '{"canvas": {"width": 1920, "height": 1080, "fps": 30.0}}'
+    )
+    (recording / "timeline.json").write_text('{"events": [,]}')
+
+    with patch.object(sys, "argv", ["screen-harness", "render", "demo"]):
+        with pytest.raises(SystemExit, match="not valid JSON"):
+            run.main()
