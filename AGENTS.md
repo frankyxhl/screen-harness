@@ -27,10 +27,15 @@ explicitly out of MVP scope.
 One-time setup per machine:
 
 ```bash
+brew install ffmpeg ffmpeg-full      # capture (avfoundation) + render (libass filters)
 uv sync                              # install dependencies into .venv
 uv run screen-harness init           # create recordings/, agent-workspace/, etc.
 uv run screen-harness doctor         # verify ffmpeg + AVFoundation
 ```
+
+Homebrew's regular `ffmpeg` 8.x no longer bundles libass, so rendering needs
+the keg-only `ffmpeg-full` (auto-preferred at
+`/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg`, or set `SCREEN_HARNESS_FFMPEG`).
 
 `doctor` should print at least:
 

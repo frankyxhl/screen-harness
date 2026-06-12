@@ -1,4 +1,8 @@
-# Screen Harness Install
+# Screen Harness Install & Troubleshooting
+
+Quick install lives in the [README](README.md#install). This file covers the
+setup details and the failure modes `doctor` can surface. Usage (recording
+scripts, SOP generation) lives in the README and `SKILL.md`.
 
 ## Local Editable Install
 
@@ -19,62 +23,52 @@ screen-harness doctor
 
 ## FFmpeg Requirements
 
-Screen capture uses the default `ffmpeg` on PATH.
+Two different FFmpeg capabilities are needed:
 
-ASS subtitle burn-in requires FFmpeg with `subtitles` or `ass` plus `drawbox`. On this machine, that is:
+- **Capture** uses the default `ffmpeg` on PATH and needs the `avfoundation`
+  input device. Homebrew's regular `ffmpeg` formula provides this.
+- **Render** burns ASS subtitles and draws highlight boxes, which needs the
+  `subtitles` (or `ass`) **and** `drawbox` filters. Homebrew's regular
+  `ffmpeg` 8.x **no longer bundles libass**, so it cannot render — install
+  the keg-only `ffmpeg-full` formula alongside it:
 
-```text
-/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg
+```bash
+brew install ffmpeg ffmpeg-full
 ```
 
-The renderer will prefer that binary when it exists. Override with:
+The renderer automatically prefers `/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg`
+when it exists. To use a different libass-enabled build:
 
 ```bash
 SCREEN_HARNESS_FFMPEG=/path/to/ffmpeg screen-harness render <recording_id>
 ```
 
-Use the professional training template when you want an intro card and numbered lower-corner step cards:
-
-```bash
-screen-harness render <recording_id> --template training
-```
+`screen-harness doctor` reports both capabilities separately: `screen
+capture: ok` covers the capture binary, `render ffmpeg: ok` covers the
+filter set.
 
 ## macOS Permissions
 
-Run:
+Screen Recording permission must be granted to **whichever process launches
+ffmpeg** (Terminal, iTerm, your agent runtime …) via System Settings →
+Privacy & Security → Screen & System Audio Recording. macOS prompts on first
+capture; recordings made while the consent dialog is up will include the
+dialog itself.
+
+Verify with:
 
 ```bash
 screen-harness doctor
 ```
 
-Expected MVP signals:
+Expected signals:
 
 - `screen capture: ok`
 - `render ffmpeg: ok`
-- microphone may be `not detected`; microphone recording is optional in MVP v0.1.
+- microphone may be `not detected`; microphone recording is optional.
 
-## MVP AI SOP Generation
-
-The first transcription provider is deterministic and offline. Put a manual transcript beside a recording:
-
-```text
-recordings/<recording_id>/manual_transcript.txt
-```
-
-Timed lines are preferred:
-
-```text
-00:00:01.000 --> 00:00:03.000 Open the target app.
-00:00:03.500 --> 00:00:06.000 Submit the form.
-```
-
-Then run:
-
-```bash
-screen-harness transcribe <recording_id>
-screen-harness sop ai-generate <recording_id>
-screen-harness redact scan <recording_id>
-screen-harness render <recording_id> --template training
-```
-
-The derived files are `transcript.srt`, `transcript.json`, regenerated `sop.srt` / `sop.ass` / `sop.md`, and `redaction_suggestions.json`. Provenance is recorded under `metadata.json`.
+If `probe_screens` raises `ScreenProbeError` mentioning Screen Recording
+permission, FFmpeg is enumerating zero screen devices while displays exist —
+grant the permission and retry. Without the `[macos]` PyObjC extra,
+`probe_screens` raises immediately; install with `uv sync --extra macos` or
+`pip install 'screen-harness[macos]'`.
