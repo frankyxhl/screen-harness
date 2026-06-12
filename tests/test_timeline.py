@@ -1,4 +1,6 @@
-from screen_harness.timeline import Timeline
+import pytest
+
+from screen_harness.timeline import Timeline, TimelineError
 
 
 def test_timeline_adds_events_and_writes_json(tmp_path):
@@ -40,3 +42,100 @@ def test_timeline_create_accepts_intro_metadata(tmp_path):
     assert loaded.data["intro"]["countdown"] == 5
     assert loaded.data["events"][0]["note"] == "Launch the browser"
     assert loaded.data["events"][0]["number"] == 1
+
+
+# ---------------------------------------------------------------------------
+# Load validation — timeline.json is documented as hand-editable ("edit
+# timeline.json and re-render"), so malformed input must fail at load time
+# with a message pointing at the problem, not as a KeyError mid-render.
+
+
+def test_load_rejects_invalid_json(tmp_path):
+    path = tmp_path / "timeline.json"
+    path.write_text('{"events": [,]}')
+
+    with pytest.raises(TimelineError, match=r"not valid JSON"):
+        Timeline.load(path)
+
+
+def test_load_invalid_json_error_names_the_file(tmp_path):
+    path = tmp_path / "timeline.json"
+    path.write_text("not json at all")
+
+    with pytest.raises(TimelineError, match=r"timeline\.json"):
+        Timeline.load(path)
+
+
+def test_load_rejects_non_object_top_level(tmp_path):
+    path = tmp_path / "timeline.json"
+    path.write_text('["just", "a", "list"]')
+
+    with pytest.raises(TimelineError, match=r"top-level JSON object"):
+        Timeline.load(path)
+
+
+def test_load_rejects_missing_events_key(tmp_path):
+    path = tmp_path / "timeline.json"
+    path.write_text('{"recording_id": "demo", "title": "Demo"}')
+
+    with pytest.raises(TimelineError, match=r"events"):
+        Timeline.load(path)
+
+
+def test_load_rejects_events_not_a_list(tmp_path):
+    path = tmp_path / "timeline.json"
+    path.write_text('{"events": {"evt_001": {}}}')
+
+    with pytest.raises(TimelineError, match=r"events.*list"):
+        Timeline.load(path)
+
+
+def test_load_rejects_non_dict_event_with_index(tmp_path):
+    path = tmp_path / "timeline.json"
+    path.write_text('{"events": [{"t": 0.0, "type": "step"}, "oops"]}')
+
+    with pytest.raises(TimelineError, match=r"events\[1\]"):
+        Timeline.load(path)
+
+
+def test_load_rejects_event_missing_type(tmp_path):
+    path = tmp_path / "timeline.json"
+    path.write_text('{"events": [{"id": "evt_001", "t": 1.5}]}')
+
+    with pytest.raises(TimelineError, match=r"events\[0\].*type"):
+        Timeline.load(path)
+
+
+def test_load_rejects_event_with_non_numeric_t(tmp_path):
+    path = tmp_path / "timeline.json"
+    path.write_text('{"events": [{"id": "evt_001", "type": "step", "t": "1.5s"}]}')
+
+    with pytest.raises(TimelineError, match=r"events\[0\].*numeric"):
+        Timeline.load(path)
+
+
+def test_load_rejects_event_missing_t(tmp_path):
+    path = tmp_path / "timeline.json"
+    path.write_text('{"events": [{"id": "evt_001", "type": "step"}]}')
+
+    with pytest.raises(TimelineError, match=r"events\[0\]"):
+        Timeline.load(path)
+
+
+def test_load_accepts_integer_t(tmp_path):
+    path = tmp_path / "timeline.json"
+    path.write_text('{"events": [{"id": "evt_001", "type": "step", "t": 2}]}')
+
+    loaded = Timeline.load(path)
+    assert loaded.data["events"][0]["t"] == 2
+
+
+def test_load_round_trip_of_created_timeline_still_works(tmp_path):
+    path = tmp_path / "timeline.json"
+    timeline = Timeline.create(
+        path=path, recording_id="demo", title="Demo", source_video="raw.mp4"
+    )
+    timeline.add_event("step", t=1.0, title="Open app")
+
+    loaded = Timeline.load(path)
+    assert loaded.data["events"][0]["title"] == "Open app"
