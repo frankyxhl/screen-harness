@@ -11,6 +11,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from screen_harness import runtime
+
 from screen_harness import helpers as _helpers
 from screen_harness.helpers import RecordingStartFailed
 from screen_harness.screens import PickedScreen, ScreenDevice
@@ -44,7 +46,7 @@ def _ffmpeg_popen_mock():
 
 @pytest.fixture()
 def isolated_state(tmp_path):
-    """Reset helpers._STATE to a fresh RuntimeState rooted at tmp_path.
+    """Reset runtime._STATE to a fresh RuntimeState rooted at tmp_path.
 
     Also patches _wait_for_ffmpeg_start to return immediately (popen_time) so
     that tests focused on HUD/region behavior don't wait for the full startup
@@ -53,16 +55,16 @@ def isolated_state(tmp_path):
     """
     _helpers.configure(tmp_path)
     import time as _time
-    with patch("screen_harness.helpers._wait_for_ffmpeg_start", return_value=_time.monotonic()):
+    with patch("screen_harness.recording._wait_for_ffmpeg_start", return_value=_time.monotonic()):
         yield tmp_path
     # Ensure we don't leave a stale recording state for other tests
-    _helpers._STATE.is_recording = False
-    _helpers._STATE.process = None
-    _helpers._STATE.log_handle = None
-    _helpers._STATE.recording_dir = None
-    _helpers._STATE.timeline = None
-    _helpers._STATE.started_at = None
-    _helpers._STATE.screen_inventory = None
+    runtime._STATE.is_recording = False
+    runtime._STATE.process = None
+    runtime._STATE.log_handle = None
+    runtime._STATE.recording_dir = None
+    runtime._STATE.timeline = None
+    runtime._STATE.started_at = None
+    runtime._STATE.screen_inventory = None
 
 
 class TestRecordingProceedsWhenHUDLaunchFails:
@@ -82,7 +84,7 @@ class TestRecordingProceedsWhenHUDLaunchFails:
 
         with patch("screen_harness.screens.probe_screens", return_value=[_FAKE_SCREEN]), \
              patch("screen_harness.screens.resolve_screen", return_value=_FAKE_PICK), \
-             patch("screen_harness.helpers._safe_ffmpeg_version", return_value="n/a"), \
+             patch("screen_harness.probing._safe_ffmpeg_version", return_value="n/a"), \
              patch("subprocess.Popen", side_effect=_fake_popen):
             rec_dir = _helpers.start_recording(
                 "hud-failure-test",
@@ -115,7 +117,7 @@ class TestRecordingProceedsWhenHUDLaunchFails:
 
         with patch("screen_harness.screens.probe_screens", return_value=[_FAKE_SCREEN]), \
              patch("screen_harness.screens.resolve_screen", return_value=_FAKE_PICK), \
-             patch("screen_harness.helpers._safe_ffmpeg_version", return_value="n/a"), \
+             patch("screen_harness.probing._safe_ffmpeg_version", return_value="n/a"), \
              patch("subprocess.Popen", side_effect=_fake_popen):
             rec_dir = _helpers.start_recording(
                 "hud-success-test",
@@ -139,7 +141,7 @@ class TestRecordingProceedsWhenHUDLaunchFails:
 
         with patch("screen_harness.screens.probe_screens", return_value=[_FAKE_SCREEN]), \
              patch("screen_harness.screens.resolve_screen", return_value=_FAKE_PICK), \
-             patch("screen_harness.helpers._safe_ffmpeg_version", return_value="n/a"), \
+             patch("screen_harness.probing._safe_ffmpeg_version", return_value="n/a"), \
              patch("subprocess.Popen", side_effect=_fake_popen):
             _helpers.start_recording("no-hud-no-region", hud=True)
 
@@ -158,7 +160,7 @@ class TestRecordingProceedsWhenHUDLaunchFails:
 
         with patch("screen_harness.screens.probe_screens", return_value=[_FAKE_SCREEN]), \
              patch("screen_harness.screens.resolve_screen", return_value=_FAKE_PICK), \
-             patch("screen_harness.helpers._safe_ffmpeg_version", return_value="n/a"), \
+             patch("screen_harness.probing._safe_ffmpeg_version", return_value="n/a"), \
              patch("subprocess.Popen", side_effect=_fake_popen):
             _helpers.start_recording(
                 "hud-disabled",
@@ -177,7 +179,7 @@ class TestRegionOutOfBoundsInHelpers:
 
         with patch("screen_harness.screens.probe_screens", return_value=[_FAKE_SCREEN]), \
              patch("screen_harness.screens.resolve_screen", return_value=_FAKE_PICK), \
-             patch("screen_harness.helpers._safe_ffmpeg_version", return_value="n/a"):
+             patch("screen_harness.probing._safe_ffmpeg_version", return_value="n/a"):
             with pytest.raises(RegionOutOfBoundsError):
                 _helpers.start_recording(
                     "overflow",
@@ -189,7 +191,7 @@ class TestRegionOutOfBoundsInHelpers:
         ffmpeg_proc = _ffmpeg_popen_mock()
         with patch("screen_harness.screens.probe_screens", return_value=[_FAKE_SCREEN]), \
              patch("screen_harness.screens.resolve_screen", return_value=_FAKE_PICK), \
-             patch("screen_harness.helpers._safe_ffmpeg_version", return_value="n/a"), \
+             patch("screen_harness.probing._safe_ffmpeg_version", return_value="n/a"), \
              patch("subprocess.Popen", return_value=ffmpeg_proc):
             rec_dir = _helpers.start_recording(
                 "valid-region",
@@ -221,7 +223,7 @@ class TestRegionOutOfBoundsInHelpers:
 
         with patch("screen_harness.screens.probe_screens", return_value=[_FAKE_SCREEN]), \
              patch("screen_harness.screens.resolve_screen", return_value=_FAKE_PICK), \
-             patch("screen_harness.helpers._safe_ffmpeg_version", return_value="n/a"), \
+             patch("screen_harness.probing._safe_ffmpeg_version", return_value="n/a"), \
              patch("subprocess.Popen", side_effect=_fake_popen):
             rec_dir = _helpers.start_recording(
                 "hud-dies-test",
@@ -244,8 +246,8 @@ class TestRegionOutOfBoundsInHelpers:
 
         with patch("screen_harness.screens.probe_screens", return_value=[_FAKE_SCREEN]), \
              patch("screen_harness.screens.resolve_screen", return_value=_FAKE_PICK), \
-             patch("screen_harness.helpers._safe_ffmpeg_version", return_value="n/a"), \
-             patch("screen_harness.helpers._wait_for_ffmpeg_start", side_effect=_interrupt), \
+             patch("screen_harness.probing._safe_ffmpeg_version", return_value="n/a"), \
+             patch("screen_harness.recording._wait_for_ffmpeg_start", side_effect=_interrupt), \
              patch("subprocess.Popen", return_value=ffmpeg_proc):
             with pytest.raises(KeyboardInterrupt):
                 _helpers.start_recording(
@@ -256,8 +258,8 @@ class TestRegionOutOfBoundsInHelpers:
 
         # After cleanup, _STATE must be reset — the harness must not think
         # a recording is still active.
-        assert _helpers._STATE.is_recording is False
-        assert _helpers._STATE.process is None
+        assert runtime._STATE.is_recording is False
+        assert runtime._STATE.process is None
 
 
 @pytest.fixture()
@@ -269,13 +271,13 @@ def isolated_state_real_wait(tmp_path):
     """
     _helpers.configure(tmp_path)
     yield tmp_path
-    _helpers._STATE.is_recording = False
-    _helpers._STATE.process = None
-    _helpers._STATE.log_handle = None
-    _helpers._STATE.recording_dir = None
-    _helpers._STATE.timeline = None
-    _helpers._STATE.started_at = None
-    _helpers._STATE.screen_inventory = None
+    runtime._STATE.is_recording = False
+    runtime._STATE.process = None
+    runtime._STATE.log_handle = None
+    runtime._STATE.recording_dir = None
+    runtime._STATE.timeline = None
+    runtime._STATE.started_at = None
+    runtime._STATE.screen_inventory = None
 
 
 class TestTightCropDisablesHUD:
@@ -294,7 +296,7 @@ class TestTightCropDisablesHUD:
 
         with patch("screen_harness.screens.probe_screens", return_value=[_FAKE_SCREEN]), \
              patch("screen_harness.screens.resolve_screen", return_value=_FAKE_PICK), \
-             patch("screen_harness.helpers._safe_ffmpeg_version", return_value="n/a"), \
+             patch("screen_harness.probing._safe_ffmpeg_version", return_value="n/a"), \
              patch("subprocess.Popen", side_effect=_fake_popen):
             rec_dir = _helpers.start_recording(
                 "tight-crop-hud-test",
@@ -331,7 +333,7 @@ class TestAbortActiveRecordingTearsDownHUD:
 
         with patch("screen_harness.screens.probe_screens", return_value=[_FAKE_SCREEN]), \
              patch("screen_harness.screens.resolve_screen", return_value=_FAKE_PICK), \
-             patch("screen_harness.helpers._safe_ffmpeg_version", return_value="n/a"), \
+             patch("screen_harness.probing._safe_ffmpeg_version", return_value="n/a"), \
              patch("subprocess.Popen", side_effect=_fake_popen):
             _helpers.start_recording(
                 "abort-hud-test",
@@ -339,11 +341,11 @@ class TestAbortActiveRecordingTearsDownHUD:
                 hud=True,
             )
 
-        assert _helpers._STATE.hud_process is not None
+        assert runtime._STATE.hud_process is not None
 
         _helpers.abort_active_recording()
 
-        assert _helpers._STATE.hud_process is None
+        assert runtime._STATE.hud_process is None
         hud_proc.stdin.close.assert_called()
 
 
@@ -370,10 +372,10 @@ class TestHUDCleanedUpWhenMetadataWriteFails:
         # First call (initial metadata write) succeeds; second (hud_active=True) raises.
         with patch("screen_harness.screens.probe_screens", return_value=[_FAKE_SCREEN]), \
              patch("screen_harness.screens.resolve_screen", return_value=_FAKE_PICK), \
-             patch("screen_harness.helpers._safe_ffmpeg_version", return_value="n/a"), \
+             patch("screen_harness.probing._safe_ffmpeg_version", return_value="n/a"), \
              patch("subprocess.Popen", side_effect=_fake_popen), \
              patch(
-                 "screen_harness.helpers._write_json",
+                 "screen_harness.runtime._write_json",
                  side_effect=[None, OSError("disk full")],
              ):
             with pytest.raises(OSError, match="disk full"):
@@ -384,8 +386,8 @@ class TestHUDCleanedUpWhenMetadataWriteFails:
                 )
 
         assert hud_proc.stdin.close.called, "HUD stdin must be closed on cleanup"
-        assert _helpers._STATE.hud_process is None
-        assert _helpers._STATE.is_recording is False
+        assert runtime._STATE.hud_process is None
+        assert runtime._STATE.is_recording is False
 
 
 class TestStartRecordingRaisesWhenFFmpegDiesImmediately:
@@ -407,7 +409,7 @@ class TestStartRecordingRaisesWhenFFmpegDiesImmediately:
 
         with patch("screen_harness.screens.probe_screens", return_value=[_FAKE_SCREEN]), \
              patch("screen_harness.screens.resolve_screen", return_value=_FAKE_PICK), \
-             patch("screen_harness.helpers._safe_ffmpeg_version", return_value="n/a"), \
+             patch("screen_harness.probing._safe_ffmpeg_version", return_value="n/a"), \
              patch("subprocess.Popen", return_value=proc):
             with pytest.raises(RecordingStartFailed) as exc_info:
                 _helpers.start_recording(
@@ -434,7 +436,7 @@ class TestStartRecordingRaisesWhenFFmpegDiesImmediately:
 
         with patch("screen_harness.screens.probe_screens", return_value=[_FAKE_SCREEN]), \
              patch("screen_harness.screens.resolve_screen", return_value=_FAKE_PICK), \
-             patch("screen_harness.helpers._safe_ffmpeg_version", return_value="n/a"), \
+             patch("screen_harness.probing._safe_ffmpeg_version", return_value="n/a"), \
              patch("subprocess.Popen", return_value=proc):
             with pytest.raises(RecordingStartFailed):
                 _helpers.start_recording(
@@ -443,7 +445,7 @@ class TestStartRecordingRaisesWhenFFmpegDiesImmediately:
                     hud=False,
                 )
 
-        assert _helpers._STATE.is_recording is False
-        assert _helpers._STATE.process is None
-        assert _helpers._STATE.log_handle is None
-        assert _helpers._STATE.recording_dir is None
+        assert runtime._STATE.is_recording is False
+        assert runtime._STATE.process is None
+        assert runtime._STATE.log_handle is None
+        assert runtime._STATE.recording_dir is None
