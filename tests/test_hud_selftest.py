@@ -6,6 +6,7 @@ a WindowServer session.  They are skipped cleanly on Linux CI.
 
 from __future__ import annotations
 
+import os
 import platform
 import shutil
 import subprocess
@@ -64,6 +65,12 @@ def _is_hud_red(r: int, g: int, b: int) -> bool:
 
 
 @pytest.mark.macos
+@pytest.mark.skipif(
+    os.environ.get("CI") == "true",
+    reason="hosted CI runners pop the macOS TCC screen-recording consent dialog "
+    "inside the crop region; its red record badge trips the HUD-red predicate "
+    "(false positive — visual evidence in issue #17)",
+)
 def test_hud_pixels_never_inside_crop_region(tmp_path):
     """HUD panels must not appear inside the crop region.
 
