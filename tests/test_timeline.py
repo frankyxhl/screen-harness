@@ -1,3 +1,6 @@
+import time
+from datetime import datetime, timedelta
+
 import pytest
 
 from screen_harness.timeline import Timeline, TimelineError
@@ -19,6 +22,27 @@ def test_timeline_adds_events_and_writes_json(tmp_path):
     assert loaded.data["recording_id"] == "demo_20260506_120000"
     assert loaded.data["events"][0]["id"] == "evt_001"
     assert loaded.data["events"][1]["type"] == "caption"
+
+
+def test_timeline_created_at_uses_local_timezone(tmp_path, monkeypatch):
+    """Timestamps must carry the machine's local offset — the package is
+    published on PyPI and must not assume the author's Asia/Tokyo zone."""
+    monkeypatch.setenv("TZ", "America/New_York")
+    time.tzset()
+    try:
+        timeline = Timeline.create(
+            path=tmp_path / "timeline.json",
+            recording_id="demo",
+            title="Demo",
+            source_video="raw.mp4",
+        )
+        created = datetime.fromisoformat(timeline.data["created_at"])
+        assert created.utcoffset() is not None, "created_at must be tz-aware"
+        assert created.utcoffset() == datetime.now().astimezone().utcoffset()
+        assert created.utcoffset() != timedelta(hours=9)
+    finally:
+        monkeypatch.undo()
+        time.tzset()
 
 
 def test_timeline_recording_id_slug_has_timestamp():

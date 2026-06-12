@@ -5,12 +5,11 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 
 from .captions import CaptionOutputs, generate_caption_assets
 from .metadata import update_ai_metadata
-from .timeline import TOKYO, Timeline
+from .timeline import Timeline, local_now
 from .transcribe import TranscriptSegment
 
 
@@ -68,7 +67,7 @@ def generate_ai_sop(recording_dir: Path) -> SopGenerationOutputs:
             "source_inputs": ["transcript.json", "timeline.json"],
             "outputs": ["sop.srt", "sop.ass", "sop.md"],
             "generated_caption_count": len(generated),
-            "generated_at": datetime.now(TOKYO).isoformat(),
+            "generated_at": local_now().isoformat(),
         },
     )
     return SopGenerationOutputs(captions=outputs, generated_caption_count=len(generated))

@@ -13,7 +13,6 @@ import subprocess
 import time
 import unicodedata
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 from typing import IO
 
@@ -27,7 +26,7 @@ from .recorder import build_screen_record_command
 from .render import DrawBox, StepPanel, concat_videos, create_intro_source, render_video
 from .sop import generate_ai_sop as generate_ai_sop_assets
 from .templates import DEFAULT_OUTRO_TITLE, get_template
-from .timeline import TOKYO, Timeline
+from .timeline import Timeline, local_now
 from .transcribe import transcribe_recording
 
 logger = logging.getLogger("screen_harness")
@@ -543,7 +542,7 @@ def stop_recording() -> Path:
         duration = _elapsed()
         metadata_path = recording_dir / "metadata.json"
         metadata = json.loads(metadata_path.read_text())
-        metadata["recording_stopped_at"] = datetime.now(TOKYO).isoformat()
+        metadata["recording_stopped_at"] = local_now().isoformat()
         metadata["duration"] = round(duration, 3)
         metadata["status"] = "stopped" if process.returncode == 0 else "error"
         metadata["error"] = None if process.returncode == 0 else f"ffmpeg exited {process.returncode}"
@@ -597,7 +596,7 @@ def abort_active_recording() -> None:
             metadata_path = recording_dir / "metadata.json"
             if metadata_path.exists():
                 metadata = json.loads(metadata_path.read_text())
-                metadata["recording_stopped_at"] = datetime.now(TOKYO).isoformat()
+                metadata["recording_stopped_at"] = local_now().isoformat()
                 metadata["duration"] = round(_elapsed(), 3)
                 metadata["status"] = "aborted"
                 metadata["error"] = "script exited before stop_recording()"
@@ -1055,7 +1054,7 @@ def _write_render_metadata(directory: Path, template_name: str, final: Path) -> 
         metadata = {}
     metadata["render_template"] = template_name
     metadata["rendered_video"] = str(Path(final).name)
-    metadata["rendered_at"] = datetime.now(TOKYO).isoformat()
+    metadata["rendered_at"] = local_now().isoformat()
     _write_json(metadata_path, metadata)
 
 
