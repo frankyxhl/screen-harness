@@ -53,7 +53,10 @@ jobs:
         run: uv python install 3.14
 
       - name: Install ffmpeg
-        run: brew install ffmpeg
+        # Regular `ffmpeg` provides avfoundation capture for recorder tests;
+        # keg-only `ffmpeg-full` provides the libass subtitles/ass filters the
+        # render pipeline prefers (render.py probes /opt/homebrew/opt/ffmpeg-full).
+        run: brew install ffmpeg ffmpeg-full
 
       - name: Sync dependencies
         run: uv sync --locked --python 3.14

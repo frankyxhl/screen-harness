@@ -5,6 +5,7 @@ Skipped on non-macOS or when PyObjC is absent.
 
 from __future__ import annotations
 
+import os
 import platform
 
 import pytest
@@ -120,6 +121,11 @@ def _looks_like_desktop_not_rendered(mean_rgb):
 
 
 @pytest.mark.macos
+@pytest.mark.skipif(
+    os.environ.get("CI") == "true",
+    reason="shared CI runner: NSWindow rendering fidelity is unreliable "
+    "(near-white frames bypass the all-black/desktop heuristics)",
+)
 def test_av_to_display_binding_via_coloured_square(tmp_path):
     """AV↔CGDirectDisplayID binding: draw a colour on each screen, capture,
     verify mean centre-block RGB matches within Euclidean distance ≤ 10.
