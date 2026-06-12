@@ -953,7 +953,9 @@ def _render_canvas(directory: Path, raw: Path) -> dict:
     ffprobe of the raw clip. Raises `RuntimeError` if neither source yields a
     valid canvas — silently defaulting to (1920, 1080, 30) would mis-align
     every overlay coordinate when the actual raw is a cropped region (e.g.
-    Safari at 1920x960 from `region=`).
+    Safari at 1920x960 from `region=`). The same applies to fps: intro/outro
+    card clips are generated at the canvas rate, so a guessed 30 would
+    silently mis-time against a 24/60 fps raw clip.
     """
     metadata_path = Path(directory) / "metadata.json"
     canvas: dict | None = None
@@ -971,10 +973,21 @@ def _render_canvas(directory: Path, raw: Path) -> dict:
             f"could not determine canvas dimensions for {raw}; ensure ffprobe is "
             "available or that metadata.json carries a populated 'canvas' block"
         )
+    if not canvas.get("fps"):
+        # metadata canvas without fps (older recordings) — the raw clip
+        # itself knows the real rate.
+        probed = _probe_canvas(raw)
+        if probed and probed.get("fps"):
+            canvas = {**canvas, "fps": probed["fps"]}
+    if not canvas.get("fps"):
+        raise RuntimeError(
+            f"could not determine frame rate for {raw}; ensure ffprobe is "
+            "available or that metadata.json carries a 'canvas' block with 'fps'"
+        )
     return {
         "width": int(canvas["width"]),
         "height": int(canvas["height"]),
-        "fps": float(canvas.get("fps") or 30.0),
+        "fps": float(canvas["fps"]),
     }
 
 

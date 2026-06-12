@@ -294,6 +294,57 @@ def test_render_raises_when_raw_recording_missing(monkeypatch, tmp_path):
         helpers.render(template="training")
 
 
+def test_render_canvas_recovers_fps_from_probe_when_metadata_lacks_it(tmp_path):
+    """metadata canvas without fps must not silently default to 30 — a fresh
+    ffprobe of the raw clip knows the real rate (e.g. 60 fps ProMotion)."""
+    recording = tmp_path / "demo"
+    recording.mkdir()
+    raw = recording / "raw.mp4"
+    raw.write_bytes(b"video")
+    (recording / "metadata.json").write_text('{"canvas": {"width": 1920, "height": 1080}}')
+
+    with patch(
+        "screen_harness.helpers._probe_canvas",
+        return_value={"width": 1920, "height": 1080, "fps": 60.0},
+    ):
+        canvas = helpers._render_canvas(recording, raw)
+
+    assert canvas["fps"] == 60.0
+
+
+def test_render_canvas_raises_when_fps_unresolvable(tmp_path):
+    """No fps from metadata or ffprobe → raise, consistent with the
+    dimensions error. Intro/outro cards generated at a guessed 30 fps would
+    silently mis-time against a 24/60 fps raw clip."""
+    recording = tmp_path / "demo"
+    recording.mkdir()
+    raw = recording / "raw.mp4"
+    raw.write_bytes(b"video")
+    (recording / "metadata.json").write_text('{"canvas": {"width": 1920, "height": 1080}}')
+
+    with patch("screen_harness.helpers._probe_canvas", return_value=None):
+        with pytest.raises(RuntimeError, match="frame rate"):
+            helpers._render_canvas(recording, raw)
+
+
+def test_render_canvas_metadata_fps_wins_without_probing(tmp_path):
+    recording = tmp_path / "demo"
+    recording.mkdir()
+    raw = recording / "raw.mp4"
+    raw.write_bytes(b"video")
+    (recording / "metadata.json").write_text(
+        '{"canvas": {"width": 1920, "height": 1080, "fps": 24.0}}'
+    )
+
+    with patch(
+        "screen_harness.helpers._probe_canvas",
+        side_effect=AssertionError("must not probe when metadata is complete"),
+    ):
+        canvas = helpers._render_canvas(recording, raw)
+
+    assert canvas["fps"] == 24.0
+
+
 def test_probe_canvas_returns_none_when_ffprobe_missing(tmp_path):
     video = tmp_path / "raw.mp4"
     video.write_bytes(b"not really video")
