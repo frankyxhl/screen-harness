@@ -17,7 +17,7 @@ import subprocess
 
 import pytest
 
-from screen_harness.helpers import RecordingStartFailed, _wait_for_ffmpeg_start
+from screen_harness.recording import RecordingStartFailed, _wait_for_ffmpeg_start
 
 
 def _make_proc(*, poll_return=None, stderr_bytes: bytes | None = None):

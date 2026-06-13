@@ -2,8 +2,9 @@ import json
 import pytest
 from unittest.mock import patch
 
-from screen_harness import helpers
+from screen_harness import helpers, probing, recording, rendering, runtime
 from screen_harness.captions import CaptionOutputs
+from screen_harness.timeline import Timeline
 from screen_harness.helpers import load_agent_helpers
 
 
@@ -40,7 +41,7 @@ def test_render_requires_stopped_recording(monkeypatch, tmp_path):
     state = helpers.RuntimeState(root=tmp_path)
     state.recording_dir = tmp_path / "recordings" / "demo"
     state.is_recording = True
-    monkeypatch.setattr(helpers, "_STATE", state)
+    monkeypatch.setattr(runtime, "_STATE", state)
 
     with pytest.raises(RuntimeError, match="stop_recording"):
         helpers.render()
@@ -49,16 +50,16 @@ def test_render_requires_stopped_recording(monkeypatch, tmp_path):
 def test_start_recording_records_cursor_capture_metadata(monkeypatch, tmp_path):
     helpers.configure(tmp_path)
 
-    with patch("screen_harness.helpers.subprocess.Popen", return_value=DummyProcess()), \
-         patch("screen_harness.helpers._safe_ffmpeg_version", return_value="ffmpeg version"):
+    with patch("screen_harness.recording.subprocess.Popen", return_value=DummyProcess()), \
+         patch("screen_harness.probing._safe_ffmpeg_version", return_value="ffmpeg version"):
         recording = helpers.start_recording("cursor_demo")
 
     metadata = json.loads((recording / "metadata.json").read_text())
     assert metadata["capture_cursor"] is True
     assert metadata["capture_mouse_clicks"] is True
-    if helpers._STATE.log_handle:
-        helpers._STATE.log_handle.close()
-    helpers._STATE.is_recording = False
+    if runtime._STATE.log_handle:
+        runtime._STATE.log_handle.close()
+    runtime._STATE.is_recording = False
 
 
 def test_start_recording_threads_region_into_metadata_and_recorder(monkeypatch, tmp_path):
@@ -69,8 +70,8 @@ def test_start_recording_threads_region_into_metadata_and_recorder(monkeypatch, 
         captured["cmd"] = list(cmd)
         return DummyProcess()
 
-    with patch("screen_harness.helpers.subprocess.Popen", side_effect=fake_popen), \
-         patch("screen_harness.helpers._safe_ffmpeg_version", return_value="ffmpeg version"):
+    with patch("screen_harness.recording.subprocess.Popen", side_effect=fake_popen), \
+         patch("screen_harness.probing._safe_ffmpeg_version", return_value="ffmpeg version"):
         recording = helpers.start_recording("region_demo", region=(0, 25, 1920, 1055), hud=False)
 
     metadata = json.loads((recording / "metadata.json").read_text())
@@ -78,26 +79,26 @@ def test_start_recording_threads_region_into_metadata_and_recorder(monkeypatch, 
     cmd = captured["cmd"]
     vf_index = cmd.index("-vf")
     assert cmd[vf_index + 1] == "crop=1920:1054:0:25"
-    if helpers._STATE.log_handle:
-        helpers._STATE.log_handle.close()
-    helpers._STATE.is_recording = False
+    if runtime._STATE.log_handle:
+        runtime._STATE.log_handle.close()
+    runtime._STATE.is_recording = False
 
 
 def test_intro_and_step_helpers_write_professional_metadata(monkeypatch, tmp_path):
-    timeline = helpers.Timeline.create(
+    timeline = Timeline.create(
         path=tmp_path / "timeline.json",
         recording_id="demo",
         title="Demo",
         source_video="raw.mp4",
     )
     state = helpers.RuntimeState(root=tmp_path, recording_dir=tmp_path, timeline=timeline, started_at=0.0)
-    monkeypatch.setattr(helpers, "_STATE", state)
+    monkeypatch.setattr(runtime, "_STATE", state)
     monkeypatch.setattr(helpers.time, "monotonic", lambda: 2.5)
 
     helpers.intro("This video demonstrates Screen Harness", subtitle="Open Safari", countdown=5)
     helpers.step("Open Safari", note="Launch the browser", number=1)
 
-    loaded = helpers.Timeline.load(tmp_path / "timeline.json")
+    loaded = Timeline.load(tmp_path / "timeline.json")
     assert loaded.data["intro"]["title"] == "This video demonstrates Screen Harness"
     assert loaded.data["intro"]["subtitle"] == "Open Safari"
     assert loaded.data["intro"]["countdown"] == 5
@@ -107,14 +108,14 @@ def test_intro_and_step_helpers_write_professional_metadata(monkeypatch, tmp_pat
 
 
 def test_outro_helper_persists_url_and_duration(monkeypatch, tmp_path):
-    timeline = helpers.Timeline.create(
+    timeline = Timeline.create(
         path=tmp_path / "timeline.json",
         recording_id="demo",
         title="Demo",
         source_video="raw.mp4",
     )
     state = helpers.RuntimeState(root=tmp_path, recording_dir=tmp_path, timeline=timeline, started_at=0.0)
-    monkeypatch.setattr(helpers, "_STATE", state)
+    monkeypatch.setattr(runtime, "_STATE", state)
 
     helpers.outro(
         "Thanks for watching",
@@ -123,7 +124,7 @@ def test_outro_helper_persists_url_and_duration(monkeypatch, tmp_path):
         duration=4.5,
     )
 
-    loaded = helpers.Timeline.load(tmp_path / "timeline.json")
+    loaded = Timeline.load(tmp_path / "timeline.json")
     assert loaded.data["outro"]["title"] == "Thanks for watching"
     assert loaded.data["outro"]["subtitle"] == "Find Screen Harness on GitHub"
     assert loaded.data["outro"]["url"] == "github.com/frankyxhl/screen-harness"
@@ -131,28 +132,28 @@ def test_outro_helper_persists_url_and_duration(monkeypatch, tmp_path):
 
 
 def test_outro_helper_rejects_overlong_text(monkeypatch, tmp_path):
-    timeline = helpers.Timeline.create(
+    timeline = Timeline.create(
         path=tmp_path / "timeline.json",
         recording_id="demo",
         title="Demo",
         source_video="raw.mp4",
     )
     state = helpers.RuntimeState(root=tmp_path, recording_dir=tmp_path, timeline=timeline, started_at=0.0)
-    monkeypatch.setattr(helpers, "_STATE", state)
+    monkeypatch.setattr(runtime, "_STATE", state)
 
     with pytest.raises(ValueError, match="exceeds .* chars"):
         helpers.outro("ok", url="x" * 500)
 
 
 def test_outro_helper_rejects_control_characters(monkeypatch, tmp_path):
-    timeline = helpers.Timeline.create(
+    timeline = Timeline.create(
         path=tmp_path / "timeline.json",
         recording_id="demo",
         title="Demo",
         source_video="raw.mp4",
     )
     state = helpers.RuntimeState(root=tmp_path, recording_dir=tmp_path, timeline=timeline, started_at=0.0)
-    monkeypatch.setattr(helpers, "_STATE", state)
+    monkeypatch.setattr(runtime, "_STATE", state)
 
     # C0 control: BEL (0x07).
     with pytest.raises(ValueError, match="control characters"):
@@ -167,14 +168,14 @@ def test_outro_helper_rejects_control_characters(monkeypatch, tmp_path):
 
 
 def test_outro_helper_rejects_non_positive_duration(monkeypatch, tmp_path):
-    timeline = helpers.Timeline.create(
+    timeline = Timeline.create(
         path=tmp_path / "timeline.json",
         recording_id="demo",
         title="Demo",
         source_video="raw.mp4",
     )
     state = helpers.RuntimeState(root=tmp_path, recording_dir=tmp_path, timeline=timeline, started_at=0.0)
-    monkeypatch.setattr(helpers, "_STATE", state)
+    monkeypatch.setattr(runtime, "_STATE", state)
 
     with pytest.raises(ValueError, match="must be positive"):
         helpers.outro("ok", duration=0)
@@ -185,35 +186,35 @@ def test_outro_helper_default_uses_template_constant(monkeypatch, tmp_path):
     the template renders, so the two stay in lock-step."""
     from screen_harness.templates import DEFAULT_OUTRO_TITLE
 
-    timeline = helpers.Timeline.create(
+    timeline = Timeline.create(
         path=tmp_path / "timeline.json",
         recording_id="demo",
         title="Demo",
         source_video="raw.mp4",
     )
     state = helpers.RuntimeState(root=tmp_path, recording_dir=tmp_path, timeline=timeline, started_at=0.0)
-    monkeypatch.setattr(helpers, "_STATE", state)
+    monkeypatch.setattr(runtime, "_STATE", state)
 
     helpers.outro()
-    loaded = helpers.Timeline.load(tmp_path / "timeline.json")
+    loaded = Timeline.load(tmp_path / "timeline.json")
     assert loaded.data["outro"]["title"] == DEFAULT_OUTRO_TITLE
 
 
 def test_highlight_region_uses_stronger_default_render_style(monkeypatch, tmp_path):
-    timeline = helpers.Timeline.create(
+    timeline = Timeline.create(
         path=tmp_path / "timeline.json",
         recording_id="demo",
         title="Demo",
         source_video="raw.mp4",
     )
     state = helpers.RuntimeState(root=tmp_path, recording_dir=tmp_path, timeline=timeline, started_at=0.0)
-    monkeypatch.setattr(helpers, "_STATE", state)
+    monkeypatch.setattr(runtime, "_STATE", state)
     monkeypatch.setattr(helpers.time, "monotonic", lambda: 1.0)
 
     helpers.highlight_region(10, 20, 100, 50, text="Repository header", duration=2.0)
 
-    loaded = helpers.Timeline.load(tmp_path / "timeline.json")
-    boxes = helpers._drawboxes(loaded.data)
+    loaded = Timeline.load(tmp_path / "timeline.json")
+    boxes = rendering._drawboxes(loaded.data)
     assert "color" not in loaded.data["events"][0]
     assert "thickness" not in loaded.data["events"][0]
     assert boxes[0].color == "blue@0.60"
@@ -221,20 +222,20 @@ def test_highlight_region_uses_stronger_default_render_style(monkeypatch, tmp_pa
 
 
 def test_highlight_region_allows_custom_render_color_and_thickness(monkeypatch, tmp_path):
-    timeline = helpers.Timeline.create(
+    timeline = Timeline.create(
         path=tmp_path / "timeline.json",
         recording_id="demo",
         title="Demo",
         source_video="raw.mp4",
     )
     state = helpers.RuntimeState(root=tmp_path, recording_dir=tmp_path, timeline=timeline, started_at=0.0)
-    monkeypatch.setattr(helpers, "_STATE", state)
+    monkeypatch.setattr(runtime, "_STATE", state)
     monkeypatch.setattr(helpers.time, "monotonic", lambda: 1.0)
 
     helpers.highlight_region(10, 20, 100, 50, text="Repository header", duration=2.0, color="cyan@0.30", thickness=12)
 
-    loaded = helpers.Timeline.load(tmp_path / "timeline.json")
-    boxes = helpers._drawboxes(loaded.data)
+    loaded = Timeline.load(tmp_path / "timeline.json")
+    boxes = rendering._drawboxes(loaded.data)
     assert loaded.data["events"][0]["color"] == "cyan@0.30"
     assert loaded.data["events"][0]["thickness"] == 12
     assert boxes[0].color == "cyan@0.30"
@@ -250,14 +251,14 @@ def test_render_passes_template_to_caption_generation(monkeypatch, tmp_path):
     (recording / "metadata.json").write_text(
         '{"canvas": {"width": 1920, "height": 1080, "fps": 30.0}}'
     )
-    helpers.Timeline.create(path=recording / "timeline.json", recording_id="demo", title="Demo", source_video="raw.mp4")
+    Timeline.create(path=recording / "timeline.json", recording_id="demo", title="Demo", source_video="raw.mp4")
     state = helpers.RuntimeState(root=tmp_path, recording_dir=recording)
-    monkeypatch.setattr(helpers, "_STATE", state)
+    monkeypatch.setattr(runtime, "_STATE", state)
 
     outputs = CaptionOutputs(srt=recording / "sop.srt", ass=recording / "sop.ass", markdown=recording / "sop.md")
-    with patch("screen_harness.helpers.generate_caption_assets", return_value=outputs) as captions, \
-         patch("screen_harness.helpers.render_video") as render_video, \
-         patch("screen_harness.helpers._probe_audio", return_value=False):
+    with patch("screen_harness.rendering.generate_caption_assets", return_value=outputs) as captions, \
+         patch("screen_harness.rendering.render_video") as render_video, \
+         patch("screen_harness.probing._probe_audio", return_value=False):
         render_video.return_value.returncode = 0
         render_video.return_value.stdout = ""
 
@@ -274,11 +275,11 @@ def test_render_raises_when_canvas_cannot_be_resolved(monkeypatch, tmp_path):
     recording = tmp_path / "recordings" / "demo"
     recording.mkdir(parents=True)
     (recording / "raw.mp4").write_bytes(b"video")
-    helpers.Timeline.create(path=recording / "timeline.json", recording_id="demo", title="Demo", source_video="raw.mp4")
+    Timeline.create(path=recording / "timeline.json", recording_id="demo", title="Demo", source_video="raw.mp4")
     state = helpers.RuntimeState(root=tmp_path, recording_dir=recording)
-    monkeypatch.setattr(helpers, "_STATE", state)
+    monkeypatch.setattr(runtime, "_STATE", state)
 
-    with patch("screen_harness.helpers._probe_canvas", return_value=None):
+    with patch("screen_harness.probing._probe_canvas", return_value=None):
         with pytest.raises(RuntimeError, match="could not determine canvas"):
             helpers.render(template="training")
 
@@ -286,9 +287,9 @@ def test_render_raises_when_canvas_cannot_be_resolved(monkeypatch, tmp_path):
 def test_render_raises_when_raw_recording_missing(monkeypatch, tmp_path):
     recording = tmp_path / "recordings" / "demo"
     recording.mkdir(parents=True)
-    helpers.Timeline.create(path=recording / "timeline.json", recording_id="demo", title="Demo", source_video="raw.mp4")
+    Timeline.create(path=recording / "timeline.json", recording_id="demo", title="Demo", source_video="raw.mp4")
     state = helpers.RuntimeState(root=tmp_path, recording_dir=recording)
-    monkeypatch.setattr(helpers, "_STATE", state)
+    monkeypatch.setattr(runtime, "_STATE", state)
 
     with pytest.raises(FileNotFoundError, match="raw recording not found"):
         helpers.render(template="training")
@@ -304,10 +305,10 @@ def test_render_canvas_recovers_fps_from_probe_when_metadata_lacks_it(tmp_path):
     (recording / "metadata.json").write_text('{"canvas": {"width": 1920, "height": 1080}}')
 
     with patch(
-        "screen_harness.helpers._probe_canvas",
+        "screen_harness.probing._probe_canvas",
         return_value={"width": 1920, "height": 1080, "fps": 60.0},
     ):
-        canvas = helpers._render_canvas(recording, raw)
+        canvas = rendering._render_canvas(recording, raw)
 
     assert canvas["fps"] == 60.0
 
@@ -322,8 +323,8 @@ def test_render_canvas_returns_none_fps_when_unresolvable(tmp_path):
     raw.write_bytes(b"video")
     (recording / "metadata.json").write_text('{"canvas": {"width": 1920, "height": 1080}}')
 
-    with patch("screen_harness.helpers._probe_canvas", return_value=None):
-        canvas = helpers._render_canvas(recording, raw)
+    with patch("screen_harness.probing._probe_canvas", return_value=None):
+        canvas = rendering._render_canvas(recording, raw)
 
     assert canvas["fps"] is None
 
@@ -333,7 +334,7 @@ def _seed_recording_without_fps(tmp_path, *, intro=None):
     recording.mkdir(parents=True)
     (recording / "raw.mp4").write_bytes(b"video")
     (recording / "metadata.json").write_text('{"canvas": {"width": 1920, "height": 1080}}')
-    helpers.Timeline.create(
+    Timeline.create(
         path=recording / "timeline.json", recording_id="demo", title="Demo",
         source_video="raw.mp4", intro=intro,
     )
@@ -344,13 +345,13 @@ def test_render_main_only_proceeds_without_fps(monkeypatch, tmp_path):
     """A timeline with no intro/outro never generates card clips, so an
     unresolvable fps must not block the render (older recordings)."""
     recording = _seed_recording_without_fps(tmp_path)
-    monkeypatch.setattr(helpers, "_STATE", helpers.RuntimeState(root=tmp_path, recording_dir=recording))
+    monkeypatch.setattr(runtime, "_STATE", helpers.RuntimeState(root=tmp_path, recording_dir=recording))
 
     outputs = CaptionOutputs(srt=recording / "sop.srt", ass=recording / "sop.ass", markdown=recording / "sop.md")
-    with patch("screen_harness.helpers._probe_canvas", return_value=None), \
-         patch("screen_harness.helpers.generate_caption_assets", return_value=outputs), \
-         patch("screen_harness.helpers.render_video") as render_video, \
-         patch("screen_harness.helpers._probe_audio", return_value=False):
+    with patch("screen_harness.probing._probe_canvas", return_value=None), \
+         patch("screen_harness.rendering.generate_caption_assets", return_value=outputs), \
+         patch("screen_harness.rendering.render_video") as render_video, \
+         patch("screen_harness.probing._probe_audio", return_value=False):
         render_video.return_value.returncode = 0
         render_video.return_value.stdout = ""
 
@@ -362,15 +363,15 @@ def test_render_with_intro_raises_when_fps_unresolvable(monkeypatch, tmp_path):
     recording = _seed_recording_without_fps(
         tmp_path, intro={"title": "Demo intro", "countdown": 5}
     )
-    monkeypatch.setattr(helpers, "_STATE", helpers.RuntimeState(root=tmp_path, recording_dir=recording))
+    monkeypatch.setattr(runtime, "_STATE", helpers.RuntimeState(root=tmp_path, recording_dir=recording))
 
     outputs = CaptionOutputs(
         srt=recording / "sop.srt", ass=recording / "sop.ass",
         markdown=recording / "sop.md", intro_ass=recording / "intro.ass",
     )
-    with patch("screen_harness.helpers._probe_canvas", return_value=None), \
-         patch("screen_harness.helpers.generate_caption_assets", return_value=outputs), \
-         patch("screen_harness.helpers._probe_audio", return_value=False):
+    with patch("screen_harness.probing._probe_canvas", return_value=None), \
+         patch("screen_harness.rendering.generate_caption_assets", return_value=outputs), \
+         patch("screen_harness.probing._probe_audio", return_value=False):
         with pytest.raises(RuntimeError, match="frame rate"):
             helpers.render(template="training")
 
@@ -385,10 +386,10 @@ def test_render_canvas_metadata_fps_wins_without_probing(tmp_path):
     )
 
     with patch(
-        "screen_harness.helpers._probe_canvas",
+        "screen_harness.probing._probe_canvas",
         side_effect=AssertionError("must not probe when metadata is complete"),
     ):
-        canvas = helpers._render_canvas(recording, raw)
+        canvas = rendering._render_canvas(recording, raw)
 
     assert canvas["fps"] == 24.0
 
@@ -397,8 +398,8 @@ def test_probe_canvas_returns_none_when_ffprobe_missing(tmp_path):
     video = tmp_path / "raw.mp4"
     video.write_bytes(b"not really video")
 
-    with patch("screen_harness.helpers.subprocess.run", side_effect=OSError("missing ffprobe")):
-        assert helpers._probe_canvas(video) is None
+    with patch("screen_harness.probing.subprocess.run", side_effect=OSError("missing ffprobe")):
+        assert probing._probe_canvas(video) is None
 
 
 def test_wait_sleeps_with_supplied_seconds(monkeypatch):
@@ -417,7 +418,7 @@ def test_wrapper_helpers_dispatch_to_module_functions(monkeypatch, tmp_path):
     recording = tmp_path / "rec"
     recording.mkdir()
     state = helpers.RuntimeState(root=tmp_path, recording_dir=recording)
-    monkeypatch.setattr(helpers, "_STATE", state)
+    monkeypatch.setattr(runtime, "_STATE", state)
 
     sentinel = object()
     with patch("screen_harness.helpers.generate_caption_assets", return_value=sentinel) as captions:
@@ -445,7 +446,7 @@ def test_render_propagates_step_panel_and_outro(monkeypatch, tmp_path):
     recording = tmp_path / "recordings" / "demo"
     recording.mkdir(parents=True)
     (recording / "raw.mp4").write_bytes(b"video")
-    timeline = helpers.Timeline.create(
+    timeline = Timeline.create(
         path=recording / "timeline.json",
         recording_id="demo",
         title="Demo",
@@ -456,14 +457,14 @@ def test_render_propagates_step_panel_and_outro(monkeypatch, tmp_path):
     timeline.data["outro"] = {"title": "Thanks", "duration": 2.0, "url": "github.com/example"}
     timeline.save()
     state = helpers.RuntimeState(root=tmp_path, recording_dir=recording)
-    monkeypatch.setattr(helpers, "_STATE", state)
+    monkeypatch.setattr(runtime, "_STATE", state)
 
     fake_result = type("R", (), {"returncode": 0, "stdout": ""})()
-    with patch("screen_harness.helpers._probe_canvas", return_value={"width": 1920, "height": 1080, "fps": 30.0}), \
-         patch("screen_harness.helpers._probe_audio", return_value=False), \
-         patch("screen_harness.helpers.create_intro_source", return_value=fake_result), \
-         patch("screen_harness.helpers.render_video", return_value=fake_result) as rv, \
-         patch("screen_harness.helpers.concat_videos", return_value=fake_result) as concat:
+    with patch("screen_harness.probing._probe_canvas", return_value={"width": 1920, "height": 1080, "fps": 30.0}), \
+         patch("screen_harness.probing._probe_audio", return_value=False), \
+         patch("screen_harness.rendering.create_intro_source", return_value=fake_result), \
+         patch("screen_harness.rendering.render_video", return_value=fake_result) as rv, \
+         patch("screen_harness.rendering.concat_videos", return_value=fake_result) as concat:
         helpers.render(template="training")
 
     # Three render_video calls: intro card + main + outro card.
@@ -480,9 +481,9 @@ def test_render_propagates_step_panel_and_outro(monkeypatch, tmp_path):
 
 def test_render_card_clip_raises_on_intro_source_failure(monkeypatch, tmp_path):
     bad_result = type("R", (), {"returncode": 1, "stdout": "lavfi failed"})()
-    with patch("screen_harness.helpers.create_intro_source", return_value=bad_result):
+    with patch("screen_harness.rendering.create_intro_source", return_value=bad_result):
         with pytest.raises(RuntimeError, match="lavfi failed"):
-            helpers._render_card_clip(
+            rendering._render_card_clip(
                 tmp_path,
                 source_name="intro-source.mp4",
                 clip_name="intro.mp4",
@@ -494,14 +495,14 @@ def test_render_card_clip_raises_on_intro_source_failure(monkeypatch, tmp_path):
 
 
 def test_simple_event_helpers_append_to_timeline(monkeypatch, tmp_path):
-    timeline = helpers.Timeline.create(
+    timeline = Timeline.create(
         path=tmp_path / "timeline.json",
         recording_id="demo",
         title="Demo",
         source_video="raw.mp4",
     )
     state = helpers.RuntimeState(root=tmp_path, recording_dir=tmp_path, timeline=timeline, started_at=0.0)
-    monkeypatch.setattr(helpers, "_STATE", state)
+    monkeypatch.setattr(runtime, "_STATE", state)
     monkeypatch.setattr(helpers.time, "monotonic", lambda: 5.0)
 
     helpers.chapter("Setup")
@@ -526,7 +527,7 @@ def test_drawboxes_warns_when_rect_extends_outside_canvas(caplog):
         ]
     }
     with caplog.at_level("WARNING", logger="screen_harness"):
-        boxes = helpers._drawboxes(data, canvas=(1920, 1080))
+        boxes = rendering._drawboxes(data, canvas=(1920, 1080))
     assert len(boxes) == 1
     assert any("extends outside canvas" in record.message for record in caplog.records)
 
@@ -534,23 +535,23 @@ def test_drawboxes_warns_when_rect_extends_outside_canvas(caplog):
 def test_drawboxes_warns_for_click_outside_canvas(caplog):
     data = {"events": [{"id": "c", "t": 0.0, "type": "click", "x": 5000, "y": 5000}]}
     with caplog.at_level("WARNING", logger="screen_harness"):
-        helpers._drawboxes(data, canvas=(1920, 1080))
+        rendering._drawboxes(data, canvas=(1920, 1080))
     assert any("outside canvas" in record.message for record in caplog.records)
 
 
 def test_drawboxes_quiet_when_canvas_is_unknown():
     data = {"events": [{"id": "1", "t": 0.0, "type": "highlight", "rect": [-50, 0, 100, 100]}]}
     # Without a canvas hint we don't warn — caller hasn't asked us to validate.
-    boxes = helpers._drawboxes(data, canvas=None)
+    boxes = rendering._drawboxes(data, canvas=None)
     assert len(boxes) == 1
 
 
 def test_probe_audio_warns_when_ffprobe_missing(monkeypatch, tmp_path, caplog):
     raw = tmp_path / "raw.mp4"
     raw.write_bytes(b"video")
-    with patch("screen_harness.helpers.subprocess.run", side_effect=OSError("ffprobe gone")):
+    with patch("screen_harness.probing.subprocess.run", side_effect=OSError("ffprobe gone")):
         with caplog.at_level("WARNING", logger="screen_harness"):
-            assert helpers._probe_audio(raw) is False
+            assert probing._probe_audio(raw) is False
     assert any("ffprobe unavailable" in record.message for record in caplog.records)
 
 
@@ -564,14 +565,14 @@ def test_start_recording_uses_new_session_so_kill_signals_group(monkeypatch, tmp
         captured["kwargs"] = kwargs
         return DummyProcess()
 
-    with patch("screen_harness.helpers.subprocess.Popen", side_effect=fake_popen), \
-         patch("screen_harness.helpers._safe_ffmpeg_version", return_value="ffmpeg version"):
+    with patch("screen_harness.recording.subprocess.Popen", side_effect=fake_popen), \
+         patch("screen_harness.probing._safe_ffmpeg_version", return_value="ffmpeg version"):
         helpers.start_recording("session_demo")
 
     assert captured["kwargs"].get("start_new_session") is True
-    helpers._STATE.is_recording = False
-    if helpers._STATE.log_handle:
-        helpers._STATE.log_handle.close()
+    runtime._STATE.is_recording = False
+    if runtime._STATE.log_handle:
+        runtime._STATE.log_handle.close()
 
 
 def test_signal_process_group_falls_back_to_send_signal_on_oserror():
@@ -585,9 +586,9 @@ def test_signal_process_group_falls_back_to_send_signal_on_oserror():
         def send_signal(self, sig):
             sent.append(sig)
 
-    with patch("screen_harness.helpers.os.killpg", side_effect=ProcessLookupError("gone")), \
-         patch("screen_harness.helpers.os.getpgid", return_value=12345):
-        helpers._signal_process_group(StubProcess(), 15)
+    with patch("screen_harness.recording.os.killpg", side_effect=ProcessLookupError("gone")), \
+         patch("screen_harness.recording.os.getpgid", return_value=12345):
+        recording._signal_process_group(StubProcess(), 15)
 
     assert sent == [15]
 
@@ -599,7 +600,7 @@ def test_drawboxes_translates_redact_and_click_events():
             {"id": "2", "t": 1.0, "type": "click", "x": 200, "y": 300},
         ]
     }
-    boxes = helpers._drawboxes(data)
+    boxes = rendering._drawboxes(data)
     assert len(boxes) == 2
     assert boxes[0].thickness == "fill"
     assert boxes[0].color == "black@0.85"
@@ -620,12 +621,12 @@ def test_stop_recording_writes_final_metadata(monkeypatch, tmp_path):
         captured["cmd"] = list(cmd)
         return process
 
-    with patch("screen_harness.helpers.subprocess.Popen", side_effect=fake_popen), \
-         patch("screen_harness.helpers._safe_ffmpeg_version", return_value="ffmpeg version"):
+    with patch("screen_harness.recording.subprocess.Popen", side_effect=fake_popen), \
+         patch("screen_harness.probing._safe_ffmpeg_version", return_value="ffmpeg version"):
         recording = helpers.start_recording("stop_demo")
 
-    monkeypatch.setattr(helpers, "_elapsed", lambda: 4.2)
-    monkeypatch.setattr(helpers, "_probe_canvas", lambda path: {"width": 1920, "height": 1080, "fps": 30.0})
+    monkeypatch.setattr(runtime, "_elapsed", lambda: 4.2)
+    monkeypatch.setattr(probing, "_probe_canvas", lambda path: {"width": 1920, "height": 1080, "fps": 30.0})
 
     result = helpers.stop_recording()
 
@@ -635,7 +636,7 @@ def test_stop_recording_writes_final_metadata(monkeypatch, tmp_path):
     assert metadata["duration"] == 4.2
     assert metadata["recording_stopped_at"] is not None
     assert metadata["canvas"]["width"] == 1920
-    assert helpers._STATE.is_recording is False
+    assert runtime._STATE.is_recording is False
 
 
 def test_stop_recording_marks_error_when_ffmpeg_fails(monkeypatch, tmp_path):
@@ -644,12 +645,12 @@ def test_stop_recording_marks_error_when_ffmpeg_fails(monkeypatch, tmp_path):
     failing.stdin = type("S", (), {"write": lambda self, b: None, "flush": lambda self: None})()
     failing.returncode = 7
 
-    with patch("screen_harness.helpers.subprocess.Popen", return_value=failing), \
-         patch("screen_harness.helpers._safe_ffmpeg_version", return_value="ffmpeg version"):
+    with patch("screen_harness.recording.subprocess.Popen", return_value=failing), \
+         patch("screen_harness.probing._safe_ffmpeg_version", return_value="ffmpeg version"):
         recording = helpers.start_recording("err_demo")
 
-    monkeypatch.setattr(helpers, "_elapsed", lambda: 1.0)
-    monkeypatch.setattr(helpers, "_probe_canvas", lambda path: None)
+    monkeypatch.setattr(runtime, "_elapsed", lambda: 1.0)
+    monkeypatch.setattr(probing, "_probe_canvas", lambda path: None)
 
     helpers.stop_recording()
     metadata = json.loads((recording / "metadata.json").read_text())
@@ -658,7 +659,7 @@ def test_stop_recording_marks_error_when_ffmpeg_fails(monkeypatch, tmp_path):
 
 
 def test_stop_recording_without_active_recording_raises(monkeypatch, tmp_path):
-    monkeypatch.setattr(helpers, "_STATE", helpers.RuntimeState(root=tmp_path))
+    monkeypatch.setattr(runtime, "_STATE", helpers.RuntimeState(root=tmp_path))
     with pytest.raises(RuntimeError, match="no active recording"):
         helpers.stop_recording()
 
@@ -681,19 +682,19 @@ def test_stop_recording_clears_state_when_metadata_write_fails(monkeypatch, tmp_
 
     log = FakeLog()
 
-    with patch("screen_harness.helpers.subprocess.Popen", return_value=process), \
-         patch("screen_harness.helpers._safe_ffmpeg_version", return_value="ffmpeg version"):
+    with patch("screen_harness.recording.subprocess.Popen", return_value=process), \
+         patch("screen_harness.probing._safe_ffmpeg_version", return_value="ffmpeg version"):
         recording = helpers.start_recording("fail_demo")
-    helpers._STATE.log_handle = log
+    runtime._STATE.log_handle = log
 
     # Sabotage the metadata read so stop_recording's body raises mid-flight.
-    monkeypatch.setattr(helpers, "_elapsed", lambda: 1.0)
+    monkeypatch.setattr(runtime, "_elapsed", lambda: 1.0)
     (recording / "metadata.json").write_text("{not valid json")
 
     with pytest.raises(json.JSONDecodeError):
         helpers.stop_recording()
 
-    assert helpers._STATE.is_recording is False
+    assert runtime._STATE.is_recording is False
     assert closed == [True]
 
 
@@ -712,17 +713,17 @@ def test_stop_recording_tolerates_stdin_oserror(monkeypatch, tmp_path):
 
     process.stdin = BadStdin()
 
-    with patch("screen_harness.helpers.subprocess.Popen", return_value=process), \
-         patch("screen_harness.helpers._safe_ffmpeg_version", return_value="ffmpeg version"):
+    with patch("screen_harness.recording.subprocess.Popen", return_value=process), \
+         patch("screen_harness.probing._safe_ffmpeg_version", return_value="ffmpeg version"):
         recording = helpers.start_recording("oserror_demo")
 
-    monkeypatch.setattr(helpers, "_elapsed", lambda: 0.5)
-    monkeypatch.setattr(helpers, "_probe_canvas", lambda path: {"width": 1920, "height": 1080, "fps": 30.0})
+    monkeypatch.setattr(runtime, "_elapsed", lambda: 0.5)
+    monkeypatch.setattr(probing, "_probe_canvas", lambda path: {"width": 1920, "height": 1080, "fps": 30.0})
 
     helpers.stop_recording()
     metadata = json.loads((recording / "metadata.json").read_text())
     assert metadata["status"] == "stopped"
-    assert helpers._STATE.is_recording is False
+    assert runtime._STATE.is_recording is False
 
 
 def test_abort_active_recording_clears_state_when_metadata_write_fails(monkeypatch, tmp_path):
@@ -741,14 +742,14 @@ def test_abort_active_recording_clears_state_when_metadata_write_fails(monkeypat
         log_handle=None,
         started_at=0.0,
     )
-    monkeypatch.setattr(helpers, "_STATE", state)
+    monkeypatch.setattr(runtime, "_STATE", state)
 
     with pytest.raises(json.JSONDecodeError):
         helpers.abort_active_recording()
 
-    assert helpers._STATE.is_recording is False
-    assert helpers._STATE.process is None
-    assert helpers._STATE.log_handle is None
+    assert runtime._STATE.is_recording is False
+    assert runtime._STATE.process is None
+    assert runtime._STATE.log_handle is None
 
 
 def test_abort_active_recording_terminates_and_marks_metadata(monkeypatch, tmp_path):
@@ -765,7 +766,7 @@ def test_abort_active_recording_terminates_and_marks_metadata(monkeypatch, tmp_p
         log_handle=None,
         started_at=0.0,
     )
-    monkeypatch.setattr(helpers, "_STATE", state)
+    monkeypatch.setattr(runtime, "_STATE", state)
 
     helpers.abort_active_recording()
 
@@ -773,4 +774,4 @@ def test_abort_active_recording_terminates_and_marks_metadata(monkeypatch, tmp_p
     saved = _json.loads(metadata.read_text())
     assert saved["status"] == "aborted"
     assert saved["error"] == "script exited before stop_recording()"
-    assert helpers._STATE.is_recording is False
+    assert runtime._STATE.is_recording is False
