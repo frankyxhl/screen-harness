@@ -69,7 +69,7 @@ class RenderTemplate(Protocol):
 
 
 @dataclass(frozen=True)
-class DebugTemplate:
+class DebugTemplate(RenderTemplate):
     name: str = "debug"
 
     def main_ass_text(self, data: dict, canvas: tuple[int, int] | None = None) -> str:
@@ -101,7 +101,7 @@ class DebugTemplate:
 
 
 @dataclass(frozen=True)
-class TrainingTemplate:
+class TrainingTemplate(RenderTemplate):
     """DevDark palette, fixed-position frosted-glass step card.
 
     Color Hunt "DevDark": `#222831 / #393E46 / #00ADB5 / #EEEEEE`. ASS colors

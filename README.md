@@ -203,7 +203,10 @@ Current test posture: **268 passing, 1 skipped** across unit, BDD-style, FFmpeg-
 
 GitHub Actions runs on pull requests and pushes to `main`:
 
-- `test`: Python `3.14` with `pytest` and `compileall`.
+- `lint`: `ruff check` over `src tests examples scripts`.
+- `type-check`: `mypy` over `src/screen_harness`.
+- `test`: `pytest` + `compileall` across Python `3.11`–`3.14` (matrix).
+- `test-macos`: the suite on `macos-latest` (Python `3.14`) so the AVFoundation/Quartz path gets real CI coverage; installs `ffmpeg` + `ffmpeg-full` via Homebrew.
 - `alfred`: validates `rules/` with `uvx --from fx-alfred af validate`.
 - `agent-docs`: runs `scripts/check_agent_docs.py` to fail-fast if `AGENTS.md` (or any tail file) was edited without regenerating `CLAUDE.md` / `.github/copilot-instructions.md` / `SKILL.md`.
 - `package`: builds source and wheel distributions with `uv build`, then uploads `dist/*` as the `screen-harness-dist` workflow artifact.

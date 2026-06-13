@@ -78,23 +78,23 @@ def _dispatch() -> None:
         print(final)
         return
     if args[:2] == ["sop", "generate"] and len(args) >= 3:
-        outputs = generate_caption_assets(_recording_dir(args[2]))
-        print(outputs.markdown)
+        caption_outputs = generate_caption_assets(_recording_dir(args[2]))
+        print(caption_outputs.markdown)
         return
     if args[:2] == ["sop", "ai-generate"] and len(args) >= 3:
         try:
-            outputs = generate_ai_sop(_recording_dir(args[2]))
+            ai_outputs = generate_ai_sop(_recording_dir(args[2]))
         except FileNotFoundError as exc:
             raise SystemExit(str(exc)) from exc
-        print(outputs.captions.markdown)
+        print(ai_outputs.captions.markdown)
         return
     if args[0] == "transcribe" and len(args) >= 2:
-        outputs = transcribe_recording(_recording_dir(args[1]), provider_name=_provider_arg(args[2:]))
-        print(outputs.transcript_srt)
+        transcript_outputs = transcribe_recording(_recording_dir(args[1]), provider_name=_provider_arg(args[2:]))
+        print(transcript_outputs.transcript_srt)
         return
     if args[:2] == ["redact", "scan"] and len(args) >= 3:
-        outputs = scan_redactions(_recording_dir(args[2]))
-        print(outputs.suggestions)
+        redaction_outputs = scan_redactions(_recording_dir(args[2]))
+        print(redaction_outputs.suggestions)
         return
     if args[:2] == ["helpers", "open"]:
         print(Path.cwd() / "agent-workspace" / "agent_helpers.py")

@@ -56,6 +56,23 @@ src = ["src"]
 # helpers are pre-imported at runtime — names are not defined in the file.
 "examples/*" = ["F821"]
 
+[tool.mypy]
+python_version = "3.11"
+files = ["src/screen_harness"]
+# Pragmatic first gate: catch real type errors without demanding full
+# annotation coverage of an existing codebase. Tighten over time.
+ignore_missing_imports = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+
+[[tool.mypy.overrides]]
+# PyObjC bridge modules call into untyped Objective-C frameworks (Quartz,
+# AppKit, AVFoundation) whose return values mypy sees as `object`. Annotating
+# every bridge call is not worthwhile; skip attribute/return checks here.
+# The pure-Python geometry helpers in hud.py are still covered by their tests.
+module = ["screen_harness.screens", "screen_harness.hud"]
+disable_error_code = ["attr-defined", "import-not-found", "import-untyped"]
+
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
