@@ -7,6 +7,7 @@ import re
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 
 def local_now() -> datetime:
@@ -63,7 +64,7 @@ class Timeline:
 
     @classmethod
     def create(cls, *, path: Path, recording_id: str, title: str, source_video: str, intro: dict | None = None) -> "Timeline":
-        data = {
+        data: dict[str, Any] = {
             "recording_id": recording_id,
             "title": title,
             "created_at": local_now().isoformat(),

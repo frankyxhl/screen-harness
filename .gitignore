@@ -12,3 +12,6 @@ recordings/
 .claude/
 agent-workspace/d2_spike*.mp4
 agent-workspace/d2_v2_*.mp4
+
+# Local HUD selftest failure evidence (CI uploads it as an artifact instead)
+hud-selftest-failure/

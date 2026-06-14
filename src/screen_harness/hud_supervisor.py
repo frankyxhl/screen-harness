@@ -12,8 +12,12 @@ import json
 import logging
 import subprocess
 import time
+from typing import TYPE_CHECKING
 
 from . import runtime
+
+if TYPE_CHECKING:
+    from .screens import ScreenDevice
 
 logger = logging.getLogger("screen_harness")
 
@@ -22,7 +26,7 @@ _HUD_ATEXIT_REGISTERED = False
 
 def _launch_hud_subprocess(
     *,
-    screen_device: "object",
+    screen_device: "ScreenDevice",
     region: tuple[int, int, int, int],
     started_at: float,
 ) -> "subprocess.Popen | None":

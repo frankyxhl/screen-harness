@@ -181,6 +181,7 @@ def start_recording(
         # Launch HUD subprocess (best-effort; recording must not fail if HUD fails).
         hud_proc: subprocess.Popen | None = None
         if hud_eligible:
+            assert region is not None  # hud_eligible is only set when region is not None
             hud_proc = hud_supervisor._launch_hud_subprocess(
                 screen_device=picked.device,
                 region=region,

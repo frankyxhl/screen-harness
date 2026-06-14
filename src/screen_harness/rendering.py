@@ -48,6 +48,7 @@ def render(recording_dir: Path | None = None, *, template: str | None = None) ->
             )
         clips: list[Path] = []
         if has_intro:
+            assert outputs.intro_ass is not None  # implied by has_intro
             intro_video = _render_card_clip(
                 directory,
                 source_name="intro-source.mp4",
@@ -65,6 +66,7 @@ def render(recording_dir: Path | None = None, *, template: str | None = None) ->
             raise RuntimeError(result.stdout)
         clips.append(main_video)
         if has_outro:
+            assert outputs.outro_ass is not None  # implied by has_outro
             outro_video = _render_card_clip(
                 directory,
                 source_name="outro-source.mp4",
