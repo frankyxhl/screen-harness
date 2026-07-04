@@ -1,7 +1,7 @@
 # REF-2220: Multi-Agent Loop Project Configuration
 
 **Applies to:** SHR project (screen-harness)
-**Last updated:** 2026-05-15
+**Last updated:** 2026-07-04
 **Last reviewed:** 2026-05-15
 **Status:** Active
 **Instantiates:** COR-1622 (parameter schema)
@@ -59,23 +59,12 @@ Notes:
 
 | Key | Value |
 |-----|-------|
-| `<panel-providers>` | `[glm, deepseek]` |
+| `<panel-providers>` | `[glm, deepseek, minimax]` |
 | `<weights-doc>` | `{CHG: COR-1609, ADR: COR-1609, RFC: COR-1608, inline-PR-body: COR-1609}` |
 | `<spec-format>` | `CHG` |
 | `<panel-pass-threshold>` | `9.0` |
 
-**Deviation from COR-1622 — panel size = 2:**
-
-COR-1622 §Review panel states "Minimum **3 viable** verdicts required to enforce the gate." This config intentionally uses only 2 providers (`glm`, `deepseek`).
-
-Consequences (documented explicitly so future runs do not silently re-derive them):
-
-1. **The COR-1617 §Phase 4 PASS gate cannot be enforced** in its all-individual-≥9.0 form. With only 2 reviewers, "all-individual" still applies arithmetically, but the schema's redundancy invariant is not met.
-2. Panel verdicts are treated as **advisory** rather than gating. Plan-review still runs and findings are still surfaced; merge decisions remain manual until the panel is expanded to ≥3.
-3. **Reviewer B in COR-1617 §Phase 8 triage** must be the operator (Frank), not a third panel provider — the panel cannot self-supply an independent third opinion.
-4. If either provider's CLI is unavailable in a session, the panel collapses to single-reviewer; surface and pause rather than proceeding.
-
-To restore gate enforcement, add a third provider (recommended: `codex`) and remove this deviation block.
+The panel meets COR-1622's 3-viable-verdict floor (restored 2026-07-04 per issue #28; `minimax` runs via the same `droid exec --auto medium --model custom:MiniMax-M3` path as `glm`). Panel verdicts are **gating** per COR-1617 §Phase 4 (all individual scores ≥ `<panel-pass-threshold>`). If any provider's CLI is unavailable in a session, retry per §Resilience; a panel that cannot reach 3 viable verdicts pauses and surfaces to the operator rather than proceeding degraded.
 
 ### Worker dispatch (COR-1619)
 
@@ -83,6 +72,8 @@ To restore gate enforcement, add a third provider (recommended: `codex`) and rem
 |-----|-------|
 | `<worker-agent>` | `trinity-glm via droid exec` |
 | `<worker-min-loc>` | `30` (default) |
+
+COR-1628's sandboxed one-shot `codex exec --sandbox workspace-write` lane (bundled in fx-alfred ≥ 1.25.0; 40+ dispatches on the alfred reference loop) is an available alternative worker lane, carrying a written task brief per its invocation contract.
 
 ### R-count cap (COR-1617 §Phase 8)
 
@@ -120,11 +111,35 @@ Note: only `chatgpt-codex-connector[bot]` is installed against this repo today. 
 
 ---
 
+## R-Round Fixes for Enumerable-Dimension Findings
+
+Adopted from the alfred reference loop (FXA-2276, generalized 2026-07-04 via
+alfred#318). **Trigger**: a review finding (bot, panel, or human) whose scope
+condition varies along one or more enumerable dimensions — any axis whose
+values form a small closed set (actor × timing window, ID origin × outcome,
+output mode × input class, platform × capability). If the finding's wording
+names a category ("when X is also Y", "only for Z-mode"), the rule applies.
+The fix round MUST:
+
+1. **Enumerate the full matrix before implementing** — every value of every
+   participating dimension, written out explicitly (into the worker task brief
+   when dispatched), not held in the orchestrator's head.
+2. **Fix all cells in that single round.** Adjacent cells are presumed
+   defective until shown otherwise: a passing regression test for the cell in
+   the same round, or an explicit `n/a` row with one-line reasoning.
+3. **Land one regression test per applicable cell** in the same round.
+
+Evidence: alfred PR #290 (timing matrix) and PR #307 (provenance matrix,
+R3/R4/R5 one-cell-per-round drip). Full worked matrices live in alfred's
+FXA-2276 §"R-round fixes for enumerable-dimension findings".
+
+---
+
 ## Guard Rails
 
 - This is a PRJ-layer doc. Changes to the COR-1622 schema itself go through the alfred/trinity upstream, not here.
 - Substituting another project's weights doc (e.g. `TRN-1800`) is a guard-rail violation per COR-1622. screen-harness uses the alfred-style map → COR-1608/1609/1610.
-- The 2-provider panel is an **intentional deviation**, not a default. Removing the deviation block in §Review panel requires growing `<panel-providers>` to ≥3 first; deleting the block without expanding the panel re-introduces the schema violation silently.
+- The panel must stay at ≥3 providers (COR-1622 floor). Shrinking `<panel-providers>` below 3 requires re-adding an explicit deviation block documenting the advisory-mode consequences — never silently.
 
 ---
 
@@ -133,3 +148,4 @@ Note: only `chatgpt-codex-connector[bot]` is installed against this repo today. 
 | Date | Change | By |
 |------|--------|----|
 | 2026-05-15 | Initial PRJ instantiation of COR-1622 — closes issue #4. Panel intentionally sized at 2 (advisory mode); 2FA consent with `blueprint-ready` label | Claude Code |
+| 2026-07-04 | Issue #28: panel restored to the COR-1622 triad floor ([glm, deepseek, minimax], gating); enumerable-dimension R-round matrix rule adopted from FXA-2276; COR-1628 noted as an available worker lane | Claude Code |
